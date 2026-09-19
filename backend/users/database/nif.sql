@@ -1,4 +1,3 @@
-
 create table genre(
     id serial primary key,
     genre VARCHAR(50)
