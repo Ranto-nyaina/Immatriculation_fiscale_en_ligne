@@ -1,0 +1,17 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+, "app/(tabs)/explorevrai.jsx", "app/(tabs)/barreDeNav.jsx", "app/(tabs)/barreDeNavClie.jsx", "app/(tabs)/listeCommandeClient.jsx", "app/(tabs)/sign_up.jsx", "app/(tabs)/accueil.jsx", "app/(tabs)/BarreView.jsx", "app/(tabs)/drawer.jsx", "app/(tabs)/index.jsx", "app/(tabs)/log_in.jsx"  ]
+}
