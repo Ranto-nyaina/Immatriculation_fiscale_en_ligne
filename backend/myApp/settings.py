@@ -67,13 +67,21 @@ ROOT_URLCONF = "myApp.urls"
 # Par défaut, toute la API exige un token valide.
 # Les vues de connexion et d'inscription doivent déclarer
 # permission_classes = [AllowAny] (voir l'exemple dans la réponse).
+# Deux types d'authentification, distingués par le mot-clé de l'en-tête :
+#   Authorization: Bearer <token>  → contribuables (token avec expiration)
+#   Authorization: Token <token>   → administrateurs (comptes Django is_staff)
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        "users.api.auth.ContribuableTokenAuthentication",
         "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    # Limite les routes publiques sensibles (connexion, code, inscription, reset)
+    "DEFAULT_THROTTLE_RATES": {
+        "auth": "10/min",
+    },
 }
 
 
@@ -152,3 +160,4 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ["EMAIL_HOST_USER"]
 EMAIL_HOST_PASSWORD = os.environ["EMAIL_HOST_PASSWORD"]
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

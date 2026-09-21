@@ -263,3 +263,34 @@ class MessagesAdmin(models.Model):
     class Meta:
         managed = False  # Ne pas créer de table, utiliser uniquement la vue
         db_table = 'vue_messages'
+
+class AuthToken(models.Model):
+    """Token de session d'un contribuable, avec date d'expiration."""
+
+    key = models.CharField(max_length=64, primary_key=True)
+    contribuable = models.ForeignKey(
+        "Contribuable", on_delete=models.CASCADE, related_name="tokens"
+    )
+    created = models.DateTimeField(auto_now_add=True)
+    expires = models.DateTimeField()
+
+    class Meta:
+        db_table = "auth_token_contribuable"
+
+
+class VerificationCode(models.Model):
+    """Code à 6 chiffres envoyé par e-mail (connexion ou mot de passe oublié)."""
+
+    PURPOSES = [("login", "Connexion"), ("reset", "Mot de passe oublié")]
+
+    contribuable = models.ForeignKey(
+        "Contribuable", on_delete=models.CASCADE, related_name="codes"
+    )
+    purpose = models.CharField(max_length=10, choices=PURPOSES)
+    code_hash = models.CharField(max_length=128)
+    created = models.DateTimeField(auto_now_add=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "verification_code"

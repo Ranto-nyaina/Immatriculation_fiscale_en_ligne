@@ -1,336 +1,60 @@
-import json
-from django.http import JsonResponse
-from django.db import connection
-from rest_framework import viewsets
-from ..models import Genre
-from ..models import Operateur
-from .serializers import UserModelSerializer
+import logging
+
 from django.contrib.auth.hashers import check_password
-from django.http import JsonResponse
-from rest_framework.authtoken.models import Token
-from django.views.decorators.csrf import csrf_exempt
-from ..models import CivismeFiscale
-from .serializers import CivismeFiscaleSerializer
-from rest_framework import generics
-from rest_framework.response import Response
-from ..models import Contribuable
-from django.utils import timezone
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.contrib.auth import get_user_model
-from .serializers import ContribuableSerializer
-from django.contrib.auth.hashers import make_password
-import base64
-from io import BytesIO
-from django.core.files.base import ContentFile
-from PIL import Image
-from django.core.exceptions import ObjectDoesNotExist
-
-from rest_framework.views import APIView
-from ..models import TransactionView
-from .serializers import TransactionSerializer
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
-
+from rest_framework import generics, status
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+    throttle_classes,
+)
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 from rest_framework.views import APIView
-from ..models import Message
-from .serializers import MessageSerializer
-from ..models import MessagesAdmin
-from .serializers import MessagesAdminSerializer
-from ..models import CentralRecette
-from .serializers import CentralRecetteSerializer
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from rest_framework.views import APIView
-from ..models import VueSommeParContribuableParAnnee
-from .serializers import VueSommeParContribuableParAnneeSerializer
+from ..models import (
+    AuthToken,
+    CentralRecette,
+    CivismeFiscale,
+    Contribuable,
+    Message,
+    MessagesAdmin,
+    Operateur,
+    TransactionView,
+    VueSommeParContribuableParAnnee,
+)
+from .auth import (
+    AuthRateThrottle,
+    IsContribuable,
+    IsStaff,
+    check_code,
+    find_by_email,
+    issue_code,
+    issue_token,
+)
+from .serializers import (
+    CentralRecetteSerializer,
+    CivismeFiscaleSerializer,
+    ContribuableSerializer,
+    MessageCreateSerializer,
+    MessageSerializer,
+    RegisterSerializer,
+    TransactionSerializer,
+    VueSommeParContribuableParAnneeSerializer,
+)
 
-from django.core.mail import send_mail
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-import random
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from django.contrib.auth import update_session_auth_hash
-from rest_framework import status
+logger = logging.getLogger(__name__)
 
-class HistogrammeAPIView(APIView):
-    def get(self, request):
-        try:
-            prenif = self.request.session.get('prenif')
-            contribuable = Contribuable.objects.get(propr_prenif=prenif)
-            id = contribuable.id_contribuable
-            
-            # Récupérer les données de la vue filtrées par l'id du contribuable
-            data = VueSommeParContribuableParAnnee.objects.filter(contribuable=id)
-
-            # Sérialisation des données
-            serializer = VueSommeParContribuableParAnneeSerializer(data, many=True)
-
-            # Retourner les données sérialisées
-            return Response(serializer.data)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-class CentralRecetteViewSet(viewsets.ModelViewSet):
-    serializer_class = CentralRecetteSerializer
-    def get_queryset(self):
-        # Utiliser 'self.request' pour accéder à la requête
-        prenif = self.request.session.get('prenif')
-        
-        # Assurez-vous que l'utilisateur est bien authentifié avant d'utiliser l'email
-        if not prenif:
-            raise PermissionDenied("Email non trouvé dans la session")
-        
-        # Récupérer le contribuable associé à l'email
-        contribuable = Contribuable.objects.get(propr_prenif=prenif)
-        
-        # Retourner les transactions associées à ce contribuable
-        return CentralRecette.objects.filter(id_contribuable=contribuable.id_contribuable)
-
-@csrf_exempt
-def login_view(request):
-    data = json.loads(request.body)
-    email = data.get('email')
-    password = data.get('password')
-
-    try:
-        # Récupérer l'utilisateur basé sur l'email
-        user = Contribuable.objects.get(mailing_address=email)
-
-        # Vérifier le mot de passe en utilisant check_password
-        if check_password(password, user.password):
-            return JsonResponse({'message': 'Identifiants corrects', 'user': {
-                'propr_name': user.propr_name,
-                'last_name': user.last_name,
-                'email': user.mailing_address
-            }}, status=200)
-        else:
-            return JsonResponse({'error': 'Identifiants incorrects'}, status=401)
-    except Contribuable.DoesNotExist:
-        return JsonResponse({'error': 'Utilisateur non trouvé'}, status=404)
-        
-class CivismeFiscaleList(generics.ListAPIView):
-    queryset = CivismeFiscale.objects.all()
-    serializer_class = CivismeFiscaleSerializer    
-    
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.video:
-            instance.video.delete()  # Supprime le fichier vidéo
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class MessagesAdminList(APIView):
-    def get(self, request, *args, **kwargs):
-        try:
-            messages = MessagesAdmin.objects.all()
-            if not messages.exists():
-                raise ObjectDoesNotExist
-
-            user_data = []
-            for message in messages:
-                photo_base64 = f"data:image/jpeg;base64,{message.photo}" if message.photo else None
-                user_data.append({
-                    'propr_name': message.propr_name,
-                    'last_name': message.last_name,
-                    'propr_prenif': message.propr_prenif,
-                    'contribuable': message.contribuable,
-                    'reponses': message.reponses,
-                    'date_reponse': message.date_reponse,
-                    'questions': message.questions,
-                    'date_question': message.date_question,
-                    'photo': photo_base64,
-                })
-
-            return JsonResponse(user_data, safe=False, status=200)
-
-        except ObjectDoesNotExist:
-            return JsonResponse({"error": "Aucun message trouvé"}, status=404)
+MAX_NAME_DISTANCE = 2          # tolérance sur les noms (avant : 3 pour le prénom, 10 pour le nom)
+MAX_PHOTO_CHARS = 2_000_000    # taille maximale d'une photo en base64
 
 
-class RegisterContribuable(APIView):
-    def post(self, request):
-        cin = request.data.get('propr_cin')
-        propr_name = request.data.get('propr_name')
-        last_name = request.data.get('last_name')
-        phone_number = request.data.get('propr_contact')
-        
-        # Vérifier si un contribuable existe déjà
-        try:
-            existing_contribuable = Contribuable.objects.get(propr_cin=cin)
-            return Response({"message": "Vous avez déjà un compte"}, status=401)
-        except Contribuable.DoesNotExist:
-            pass  # Si l'utilisateur n'existe pas, continuer l'exécution
-        
-        # Vérification de l'opérateur
-        try:
-            operateur = Operateur.objects.get(propr_cin=cin)
-        except Operateur.DoesNotExist:
-            return Response({"message": "L'opérateur correspondant au C.I.N n'existe pas."}, status=404)
-
-        if operateur.propr_contact == phone_number:
-            # Calcul de la distance de Levenshtein
-            long_name = levenshtein_distance(propr_name, operateur.propr_name)
-            long_last_name = levenshtein_distance(last_name, operateur.last_name)
-
-            # Vérification de la similarité des noms
-            if long_name < 3 and long_last_name < 10:
-                prenif = GenererPRENIFetMdp(cin)
-                
-                # Données par défaut à enregistrer
-                default_data = {
-                    'create_date': timezone.now().date(),  # Date actuelle par défaut
-                    'birth_date': None,  # Valeur par défaut si non fournie
-                    'birth_place': 'Inconnu',  # Valeur par défaut pour le lieu de naissance
-                    'mailing_address': 'Non spécifié',  # Valeur par défaut pour l'adresse postale
-                    'bank_acct_no': 'Aucun',  # Valeur par défaut pour le numéro de compte bancaire
-                    'propr_prenif': prenif,
-                }
-
-                # Fusionner les données de la requête et les valeurs par défaut
-                data_to_save = {**default_data, **request.data}
-
-                # Sérialisation et sauvegarde des données
-                serializer = ContribuableSerializer(data=data_to_save)
-                if serializer.is_valid():
-                    user = serializer.save()
-
-                    # Enregistrer les informations de l'utilisateur dans la session
-                    request.session['prenif'] = user.propr_prenif
-
-                    return Response({
-                        "message": "Inscription réussie",
-                        "user": {
-                            'email': user.mailing_address,
-                            'propr_prenif': user.propr_prenif,
-                            'propr_name': operateur.propr_name,
-                            'last_name': operateur.last_name,
-                        }
-                    }, status=status.HTTP_201_CREATED)
-                else:
-                    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                return Response({"message": "Le nom ne correspond pas dans la base de données"}, status=404)
-        else:
-            return Response({"message": "Le contact ne correspond pas au C.I.N"}, status=404)
-        
-@csrf_exempt
-def logout_view(request):
-    # Supprimer toutes les données de la session
-    request.session.flush()
-    return JsonResponse({'message': 'Déconnexion réussie'}, status=200)
-
-@api_view(['POST'])
-def change_password(request):
-    try:
-        prenif = request.session.get('prenif')
-        contribuable = Contribuable.objects.get(propr_prenif=prenif)
-        current_password = request.data.get('current_password')
-        new_password = request.data.get('new_password')
-        if check_password(current_password, contribuable.password):
-            contribuable.password = new_password
-            contribuable.save()
-            return Response({"message": "Mot de passe modifié avec succès!"}, status=status.HTTP_200_OK)
-        return Response({"message": "Mot de passe actuel incorrect."}, status=status.HTTP_400_BAD_REQUEST)
-
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-@csrf_exempt
-def update_user_info(request):
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            propr_name = data.get("propr_name")
-            last_name = data.get("last_name")
-            mailing_adrdress = data.get("mailing_address")
-            phone_number = data.get("phone_number")
-            photo = data.get("photo")  # Photo envoyée en base64
-
-            # Vérification de l'existence des champs obligatoires
-            if not any([propr_name, last_name, phone_number, mailing_adrdress, photo]):
-                return JsonResponse({"error": "Au moins un champ doit être modifié."}, status=400)
-
-            prenif = request.session.get('prenif')
-            contribuable = Contribuable.objects.get(propr_prenif=prenif)
-            cin = contribuable.propr_cin
-            operateur = Operateur.objects.get(propr_cin=cin)
-
-            # Vous pouvez vérifier les distances de Levenshtein si nécessaire, comme dans votre exemple original
-            long_name = levenshtein_distance(propr_name, operateur.propr_name) if propr_name else 0
-            long_last_name = levenshtein_distance(last_name, operateur.last_name) if last_name else 0
-            
-            if photo:
-                contribuable.photo = photo  # Sauvegarde de la photo en base64
-
-                contribuable.save()
-                return JsonResponse({"message": "Informations mises à jour avec succès"}, status=200)
-            
-            if long_name < 3 and long_last_name < 10:
-                if operateur.propr_contact == phone_number:
-                    # Mise à jour sélective des champs
-                    if propr_name:
-                        contribuable.propr_name = propr_name
-                    if last_name:
-                        contribuable.last_name = last_name
-                    if mailing_adrdress:
-                        contribuable.mailing_address = mailing_adrdress
-                    if phone_number:
-                        contribuable.propr_contact = phone_number
-
-                    contribuable.save()
-                    return JsonResponse({"message": "Informations mises à jour avec succès"}, status=200)
-                else:
-                    return JsonResponse({"message": "Le contact ne correspond pas au C.I.N"}, status=404)
-            else:
-                return JsonResponse({"message": "Le nom ne correspond pas dans la base de donnée"}, status=404)
-
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Format JSON invalide."}, status=400)
-
-        except Contribuable.DoesNotExist:
-            return JsonResponse({"error": "Utilisateur non trouvé"}, status=404)
-
-        except Exception as e:
-            return JsonResponse({"error": "Erreur serveur interne"}, status=500)
-
-def get_user_info(request):
-    prenif = request.session.get('prenif')
-    try:
-        contribuable = Contribuable.objects.get(propr_prenif=prenif)
-        photo_base64 = f"data:image/jpeg;base64,{contribuable.photo}" if contribuable.photo else None
-
-        user_data = {
-            'propr_name': contribuable.propr_name,
-            'last_name': contribuable.last_name,
-            'phone_number': contribuable.propr_contact,
-            'mailing_address': contribuable.mailing_address,
-            'propr_prenif': contribuable.propr_prenif,
-            'propr_cin': contribuable.propr_cin,
-            'photo': photo_base64,
-        }
-
-        return JsonResponse(user_data, status=200)
-
-    except ObjectDoesNotExist:
-        return JsonResponse({"error": "Utilisateur non trouvé"}, status=404)
-
-def GenererPRENIFetMdp(cin):
-    # Vérifiez que le CIN contient exactement 12 caractères
-    if len(cin) != 12:
-        raise ValueError("Le CIN doit contenir exactement 12 caractères pour générer le PRENIF et le mot de passe.")
-    
-    # Générer le PRENIF (Les 9 derniers chiffres du CIN et le premier est la somme des 3 premiers chiffres)
-    derniere_partie_cin = cin[-9:]
-    somme_trois_premiers = sum(int(digit) for digit in derniere_partie_cin[:3])
-
-    # Si la somme est à deux chiffres, additionner encore
-    while somme_trois_premiers >= 10:
-        somme_trois_premiers = sum(int(digit) for digit in str(somme_trois_premiers))
-
-    prenif = str(somme_trois_premiers) + derniere_partie_cin
-
-    return prenif
+# ==========================================================================
+# Utilitaires
+# ==========================================================================
 
 def levenshtein_distance(s1, s2):
     m, n = len(s1), len(s2)
@@ -348,104 +72,422 @@ def levenshtein_distance(s1, s2):
 
     return dp[m][n]
 
-@csrf_exempt
-def verify_user(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        cin = data.get('cin')
-        email = data.get('email')
-        numero = data.get('numero')
 
-        # Vérifiez si un utilisateur correspond aux données
-        user = Contribuable.objects.filter(propr_cin=cin, mailing_address=email, propr_contact=numero).first()
-        if user:
-            return JsonResponse({'status': 'success', 'message': 'Utilisateur trouvé !'}, status=200)
-        return JsonResponse({'status': 'error', 'message': 'Utilisateur non trouvé !'}, status=404)
+def names_match(given, official):
+    a = (given or "").strip().lower()
+    b = (official or "").strip().lower()
+    return levenshtein_distance(a, b) <= MAX_NAME_DISTANCE
 
-    return JsonResponse({'status': 'error', 'message': 'Méthode de requête invalide !'}, status=400)
 
-@csrf_exempt
-def update_password(request):
-    if request.method == "POST":
+def GenererPRENIFetMdp(cin):
+    # Le CIN doit contenir exactement 12 chiffres
+    if len(cin) != 12 or not cin.isdigit():
+        raise ValueError("Le CIN doit contenir exactement 12 chiffres pour générer le PRENIF.")
+
+    # PRENIF : les 9 derniers chiffres du CIN, précédés de la somme (réduite à 1 chiffre)
+    # des 3 premiers de ces 9 chiffres
+    derniere_partie_cin = cin[-9:]
+    somme_trois_premiers = sum(int(digit) for digit in derniere_partie_cin[:3])
+
+    while somme_trois_premiers >= 10:
+        somme_trois_premiers = sum(int(digit) for digit in str(somme_trois_premiers))
+
+    return str(somme_trois_premiers) + derniere_partie_cin
+
+
+def validate_new_password(raw):
+    """Applique les validateurs du modèle (longueur, lettre + chiffre + spécial).
+    Retourne un message d'erreur, ou None si le mot de passe est valide."""
+    try:
+        Contribuable._meta.get_field("password").run_validators(raw)
+    except DjangoValidationError as e:
+        return " ".join(e.messages)
+    return None
+
+
+# ==========================================================================
+# Authentification (connexion en 2 étapes : mot de passe puis code e-mail)
+# ==========================================================================
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([AuthRateThrottle])
+def login_view(request):
+    """Étape 1 : vérifie e-mail + mot de passe, puis envoie un code par e-mail."""
+    email = (request.data.get("email") or "").strip()
+    password = request.data.get("password") or ""
+
+    contribuable = find_by_email(email)
+    # Même réponse si l'e-mail est inconnu ou le mot de passe faux
+    if contribuable is None or not check_password(password, contribuable.password):
+        return Response({"error": "Identifiants incorrects"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        issue_code(contribuable, "login")
+    except Exception:
+        logger.exception("Échec d'envoi du code de connexion")
+        return Response(
+            {"error": "Envoi du code impossible, réessayez plus tard."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    return Response({"message": "Code de vérification envoyé par e-mail."})
+
+
+# Renvoi du code : même contrôle (e-mail + mot de passe) que la connexion
+send_verification_email = login_view
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([AuthRateThrottle])
+def verify_code(request):
+    """Étape 2 : vérifie le code et retourne le token de session."""
+    email = (request.data.get("email") or "").strip()
+    code = str(request.data.get("code") or "").strip()
+
+    contribuable = find_by_email(email)
+    if contribuable is None or not check_code(contribuable, "login", code):
+        return Response({"error": "Code invalide ou expiré"}, status=status.HTTP_400_BAD_REQUEST)
+
+    token = issue_token(contribuable)
+    return Response({
+        "message": "Code vérifié avec succès",
+        "token": token.key,
+        "prenif": contribuable.propr_prenif,
+        "propr_name": contribuable.propr_name,
+        "last_name": contribuable.last_name,
+    })
+
+
+@api_view(["POST"])
+def logout_view(request):
+    if isinstance(request.auth, AuthToken):
+        request.auth.delete()
+    return Response({"message": "Déconnexion réussie"})
+
+
+@api_view(["GET", "POST"])
+@permission_classes([AllowAny])
+def check_session(request):
+    if isinstance(request.user, Contribuable):
+        return Response({"isAuthenticated": True, "prenif": request.user.propr_prenif})
+    return Response({"isAuthenticated": False})
+
+
+# ==========================================================================
+# Inscription
+# ==========================================================================
+
+class RegisterContribuable(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
+
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        data = serializer.validated_data
+        cin = data["propr_cin"]
+
+        if Contribuable.objects.filter(propr_cin=cin).exists():
+            return Response({"message": "Vous avez déjà un compte"}, status=status.HTTP_409_CONFLICT)
+
+        # Un seul message pour tous les échecs de vérification d'identité
+        # (évite de révéler quel élément est faux)
+        def mismatch():
+            return Response(
+                {"message": "Les informations ne correspondent pas à celles de la base."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        operateur = Operateur.objects.filter(propr_cin=cin).first()
+        if operateur is None or operateur.propr_contact != data["propr_contact"]:
+            return mismatch()
+        if not (names_match(data["propr_name"], operateur.propr_name)
+                and names_match(data["last_name"], operateur.last_name)):
+            return mismatch()
+
         try:
-            # Charger les données JSON envoyées par le client
-            data = json.loads(request.body)
-            cin = data.get('cin')
-            new_password = data.get('newPassword')
+            prenif = GenererPRENIFetMdp(cin)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Vérifier si le CIN et le nouveau mot de passe sont présents
-            if not cin or not new_password:
-                return JsonResponse({'message': 'CIN ou mot de passe manquant.'}, status=400)
+        if Contribuable.objects.filter(propr_prenif=prenif).exists():
+            logger.error("Collision de PRENIF lors d'une inscription")
+            return Response(
+                {"message": "Impossible de générer un PRENIF, contactez le service d'aide."},
+                status=status.HTTP_409_CONFLICT,
+            )
 
-            # Rechercher l'utilisateur correspondant au CIN
-            try:
-                user = Contribuable.objects.get(propr_cin=cin)
-            except Contribuable.DoesNotExist:
-                return JsonResponse({'message': 'Utilisateur non trouvé.'}, status=404)
+        user = serializer.save(propr_prenif=prenif, birth_place="Inconnu", bank_acct_no="Aucun")
 
-            # Mettre à jour et hacher le mot de passe
-            user.password = new_password
-            user.save()
+        # Pas de connexion automatique : le contribuable doit passer par
+        # la connexion en 2 étapes (mot de passe + code e-mail).
+        return Response({
+            "message": "Inscription réussie",
+            "user": {
+                "email": user.mailing_address,
+                "propr_prenif": user.propr_prenif,
+                "propr_name": operateur.propr_name,
+                "last_name": operateur.last_name,
+            },
+        }, status=status.HTTP_201_CREATED)
 
-            return JsonResponse({'message': 'Mot de passe mis à jour avec succès.'}, status=200)
 
-        except json.JSONDecodeError:
-            return JsonResponse({'message': 'Données invalides.'}, status=400)
-        except Exception as e:
-            return JsonResponse({'message': f'Erreur: {str(e)}'}, status=500)
+# ==========================================================================
+# Mot de passe
+# ==========================================================================
 
-    return JsonResponse({'message': 'Méthode non autorisée.'}, status=405)
+@api_view(["POST"])
+@permission_classes([IsContribuable])
+def change_password(request):
+    contribuable = request.user
+    current_password = request.data.get("current_password") or ""
+    new_password = request.data.get("new_password") or ""
+
+    if not check_password(current_password, contribuable.password):
+        return Response({"message": "Mot de passe actuel incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+    error = validate_new_password(new_password)
+    if error:
+        return Response({"message": error}, status=status.HTTP_400_BAD_REQUEST)
+
+    contribuable.password = new_password   # haché par Contribuable.save()
+    contribuable.save()
+    # Déconnecte les autres appareils
+    contribuable.tokens.exclude(pk=request.auth.pk).delete()
+    return Response({"message": "Mot de passe modifié avec succès!"}, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([AuthRateThrottle])
+def verify_user(request):
+    """Mot de passe oublié, étape 1 : vérifie CIN + e-mail + numéro, envoie un code."""
+    cin = request.data.get("cin")
+    email = (request.data.get("email") or "").strip()
+    numero = request.data.get("numero")
+
+    if not (cin and email and numero):
+        return Response({"status": "error", "message": "Champs manquants."}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = Contribuable.objects.filter(
+        propr_cin=cin, mailing_address__iexact=email, propr_contact=numero
+    ).first()
+    if user is None:
+        return Response({"status": "error", "message": "Utilisateur non trouvé !"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        issue_code(user, "reset")
+    except Exception:
+        logger.exception("Échec d'envoi du code de réinitialisation")
+        return Response(
+            {"status": "error", "message": "Envoi du code impossible, réessayez plus tard."},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    return Response({"status": "success", "message": "Code envoyé par e-mail."})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([AuthRateThrottle])
+def update_password(request):
+    """Mot de passe oublié, étape 2 : le code reçu par e-mail est OBLIGATOIRE.
+    (Avant : le CIN seul suffisait pour changer le mot de passe de n'importe qui.)"""
+    cin = request.data.get("cin")
+    code = str(request.data.get("code") or "").strip()
+    new_password = request.data.get("newPassword") or ""
+
+    if not cin or not code or not new_password:
+        return Response({"message": "CIN, code ou mot de passe manquant."}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = Contribuable.objects.filter(propr_cin=cin).first()
+    if user is None or not check_code(user, "reset", code):
+        return Response({"message": "Code invalide ou expiré."}, status=status.HTTP_400_BAD_REQUEST)
+
+    error = validate_new_password(new_password)
+    if error:
+        return Response({"message": error}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.password = new_password
+    user.save()
+    user.tokens.all().delete()   # déconnecte tous les appareils
+    return Response({"message": "Mot de passe mis à jour avec succès."})
+
+
+# ==========================================================================
+# Profil
+# ==========================================================================
+
+@api_view(["GET"])
+@permission_classes([IsContribuable])
+def get_user_info(request):
+    c = request.user
+    return Response({
+        "propr_name": c.propr_name,
+        "last_name": c.last_name,
+        "phone_number": c.propr_contact,
+        "mailing_address": c.mailing_address,
+        "propr_prenif": c.propr_prenif,
+        "propr_cin": c.propr_cin,
+        "photo": f"data:image/jpeg;base64,{c.photo}" if c.photo else None,
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsContribuable])
+def update_user_info(request):
+    data = request.data
+    propr_name = data.get("propr_name")
+    last_name = data.get("last_name")
+    mailing_address = data.get("mailing_address")
+    phone_number = data.get("phone_number")
+    photo = data.get("photo")  # base64
+
+    if not any([propr_name, last_name, phone_number, mailing_address, photo]):
+        return Response({"error": "Au moins un champ doit être modifié."}, status=status.HTTP_400_BAD_REQUEST)
+
+    contribuable = request.user
+
+    if photo:
+        if len(photo) > MAX_PHOTO_CHARS:
+            return Response({"error": "Photo trop volumineuse."}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+        contribuable.photo = photo
+        contribuable.save(update_fields=["photo"])
+        return Response({"message": "Informations mises à jour avec succès"})
+
+    operateur = Operateur.objects.filter(propr_cin=contribuable.propr_cin).first()
+    if operateur is None:
+        return Response({"error": "Opérateur introuvable"}, status=status.HTTP_404_NOT_FOUND)
+
+    if (propr_name and not names_match(propr_name, operateur.propr_name)) or \
+       (last_name and not names_match(last_name, operateur.last_name)):
+        return Response({"message": "Le nom ne correspond pas dans la base de donnée"}, status=status.HTTP_404_NOT_FOUND)
+
+    if operateur.propr_contact != phone_number:
+        return Response({"message": "Le contact ne correspond pas au C.I.N"}, status=status.HTTP_404_NOT_FOUND)
+
+    if propr_name:
+        contribuable.propr_name = propr_name
+    if last_name:
+        contribuable.last_name = last_name
+    if mailing_address:
+        contribuable.mailing_address = mailing_address
+    contribuable.propr_contact = phone_number
+    contribuable.save()
+    return Response({"message": "Informations mises à jour avec succès"})
+
+
+# ==========================================================================
+# Données du contribuable connecté
+# ==========================================================================
+
+class HistogrammeAPIView(APIView):
+    permission_classes = [IsContribuable]
+
+    def get(self, request):
+        data = VueSommeParContribuableParAnnee.objects.filter(
+            contribuable=request.user.id_contribuable
+        )
+        return Response(VueSommeParContribuableParAnneeSerializer(data, many=True).data)
+
+
+class CentralRecetteViewSet(ReadOnlyModelViewSet):
+    """Lecture seule : un contribuable ne doit pas pouvoir créer,
+    modifier ou supprimer des transactions."""
+
+    serializer_class = CentralRecetteSerializer
+    permission_classes = [IsContribuable]
+
+    def get_queryset(self):
+        return CentralRecette.objects.filter(id_contribuable=self.request.user)
+
+
+class TransactionSearchView(APIView):
+    permission_classes = [IsContribuable]
+
+    def get(self, request, *args, **kwargs):
+        search_text = request.GET.get("search", "")
+        transactions = TransactionView.objects.filter(contribuable=request.user.id_contribuable)
+
+        if search_text:
+            transactions = transactions.filter(
+                Q(n_quit__icontains=search_text)
+                | Q(date_paiement__icontains=search_text)
+                | Q(montant__icontains=search_text)
+            )
+        return Response(TransactionSerializer(transactions, many=True).data, status=status.HTTP_200_OK)
+
+
+class CivismeFiscaleList(generics.ListAPIView):
+    # Accessible à tout utilisateur authentifié (permission par défaut)
+    queryset = CivismeFiscale.objects.all()
+    serializer_class = CivismeFiscaleSerializer
 
 
 class ChatView(APIView):
+    permission_classes = [IsContribuable]
+
     def get(self, request):
-        prenif = request.session.get('prenif')
-        if not prenif:
-            return Response({"error": "Utilisateur non authentifié"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        try:
-            # Filtrer les messages par prenif
-            messages = Message.objects.filter(prenif=prenif).order_by('-date_question')
-            serializer = MessageSerializer(messages, many=True)
-            return Response(serializer.data)
-        except Contribuable.DoesNotExist:
-            return Response({"error": "Utilisateur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+        messages = Message.objects.filter(prenif=request.user.propr_prenif).order_by("-date_question")
+        return Response(MessageSerializer(messages, many=True).data)
 
     def post(self, request):
-        prenif = request.session.get('prenif')
-        if not prenif:
-            return Response({"error": "Utilisateur non authentifié"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        try:
-            # Attacher le prenif de l'utilisateur connecté au message
-            data = request.data.copy()
-            data['prenif'] = prenif
+        serializer = MessageCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            # Le PRENIF vient du token, jamais du client
+            serializer.save(prenif=request.user.propr_prenif)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            serializer = MessageSerializer(data=data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Contribuable.DoesNotExist:
-            return Response({"error": "Utilisateur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
+
+# ==========================================================================
+# Administrateurs (compte Django is_staff + en-tête « Authorization: Token ... »)
+# ==========================================================================
+
+class MessagesAdminList(APIView):
+    permission_classes = [IsStaff]
+
+    def get(self, request, *args, **kwargs):
+        messages = MessagesAdmin.objects.all()
+        if not messages.exists():
+            return Response({"error": "Aucun message trouvé"}, status=status.HTTP_404_NOT_FOUND)
+
+        user_data = [{
+            "propr_name": m.propr_name,
+            "last_name": m.last_name,
+            "propr_prenif": m.propr_prenif,
+            "contribuable": m.contribuable,
+            "reponses": m.reponses,
+            "date_reponse": m.date_reponse,
+            "questions": m.questions,
+            "date_question": m.date_question,
+            "photo": f"data:image/jpeg;base64,{m.photo}" if m.photo else None,
+        } for m in messages]
+        return Response(user_data)
+
 
 class AdminChatView(APIView):
+    permission_classes = [IsStaff]
+
     def get(self, request):
         prenif = request.GET.get("prenif")
         if not prenif:
-            return Response({"error": "Utilisateur non authentifié"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        messages = Message.objects.filter(prenif=prenif).order_by('-date_question')
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data)
+            return Response({"error": "Paramètre prenif manquant"}, status=status.HTTP_400_BAD_REQUEST)
+        messages = Message.objects.filter(prenif=prenif).order_by("-date_question")
+        return Response(MessageSerializer(messages, many=True).data)
 
     def post(self, request):
         prenif = request.GET.get("prenif")
         if not prenif:
-            return Response({"error": "Utilisateur non authentifié"}, status=status.HTTP_401_UNAUTHORIZED)
-
+            return Response({"error": "Paramètre prenif manquant"}, status=status.HTTP_400_BAD_REQUEST)
         data = request.data.copy()
-        data["prenif"] = prenif  # Ajout automatique du prenif
+        data["prenif"] = prenif
         serializer = MessageSerializer(data=data)
         if serializer.is_valid():
             serializer.save()
@@ -453,91 +495,14 @@ class AdminChatView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@csrf_exempt
-def check_session(request):
-    prenif_value = request.session.get('prenif')
-    if prenif_value is not None:
-        return JsonResponse({'isAuthenticated': True, 'prenif': prenif_value})
-    return JsonResponse({'isAuthenticated': False})
-
-class TransactionSearchView(APIView):
-    def get(self, request, *args, **kwargs):
-        search_text = request.GET.get('search', '')
-
-        # Récupérer le prenif de la session
-        prenif = self.request.session.get('prenif')
-            
-        # Trouver le contribuable en fonction de l'email
-        contribuable = Contribuable.objects.get(propr_prenif=prenif)
-        id = contribuable.id_contribuable
-            
-        # Filtres de recherche
-        transactions = TransactionView.objects.filter(contribuable=id)
-
-        if search_text:
-            transactions = transactions.filter(
-                Q(n_quit__icontains=search_text) |  # Recherche sur le quit
-                Q(date_paiement__icontains=search_text) |  # Recherche sur la date
-                Q(montant__icontains=search_text)  # Recherche sur le montant
-            )
-
-        # Sérialiser les résultats
-        serializer = TransactionSerializer(transactions, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
 class AdminSearchView(APIView):
+    permission_classes = [IsStaff]
+
     def get(self, request, *args, **kwargs):
-        search_text = request.GET.get('search', '')
-
+        search_text = request.GET.get("search", "")
         if search_text:
-            transactions = Contribuable.objects.filter(propr_prenif__icontains=search_text)
+            contribuables = Contribuable.objects.filter(propr_prenif__icontains=search_text)
         else:
-            transactions = Contribuable.objects.all()  # Renvoie tout si pas de recherche
-
-        serializer = ContribuableSerializer(transactions, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-
-# Stockage temporaire des codes (utilisez une base de données en production)
-VERIFICATION_CODES = {}
-
-@csrf_exempt
-def send_verification_email(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        email = data.get('email')
-        if not email:
-            return JsonResponse({'error': 'Email non fourni'}, status=400)
-        
-        # Générer un code à 6 chiffres
-        code = random.randint(100000, 999999)
-        VERIFICATION_CODES[email] = str(code)
-
-        # Envoyer l'email
-        send_mail(
-            'Votre code de vérification',
-            f'Votre code est : {code}',
-            'francico12ranto@gmail.com',
-            [email],
-            fail_silently=False,
-        )
-        return JsonResponse({'message': 'Code envoyé avec succès'})
-    return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
-
-@csrf_exempt
-def verify_code(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        email = data.get('email')
-        code = data.get('code')
-        if VERIFICATION_CODES.get(email) == code:
-            user = Contribuable.objects.get(mailing_address=email)
-            # Enregistrer les informations de l'utilisateur dans la session
-            request.session['propr_name'] = user.propr_name
-            request.session['last_name'] = user.last_name
-            request.session['prenif'] = user.propr_prenif
-            return JsonResponse({'message': 'Code vérifié avec succès', 'prenif': user.propr_prenif})
-        return JsonResponse({'error': 'Code invalide'}, status=400)
-    return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
+            contribuables = Contribuable.objects.all()
+        # ContribuableSerializer n'expose plus le mot de passe
+        return Response(ContribuableSerializer(contribuables, many=True).data, status=status.HTTP_200_OK)
