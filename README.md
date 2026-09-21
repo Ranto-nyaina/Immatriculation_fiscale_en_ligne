@@ -46,9 +46,9 @@ Les cas d'utilisation sont classés par ordre de priorité :
 
 <table>
   <tr>
-    <td align="center"><b>Connexion</b><br><br><img src="docs/connexion.png" alt="Écran de connexion" width="200"></td>
-    <td align="center"><b>Inscription</b><br><br><img src="docs/inscription.png" alt="Écran d'inscription" width="200"></td>
-    <td align="center"><b>Historique</b><br><br><img src="docs/historique.png" alt="Historique des transactions et histogramme" width="200"></td>
+    <td align="center"><b>Connexion</b><br><br><img src="docs/connexion.jpg" alt="Écran de connexion" width="200"></td>
+    <td align="center"><b>Inscription</b><br><br><img src="docs/inscription.jpg" alt="Écran d'inscription" width="200"></td>
+    <td align="center"><b>Historique</b><br><br><img src="docs/historique.jpg" alt="Historique des transactions et histogramme" width="200"></td>
     <td align="center"><b>Paramètres</b><br><br><img src="docs/parametres.png" alt="Page des paramètres" width="200"></td>
   </tr>
 </table>
