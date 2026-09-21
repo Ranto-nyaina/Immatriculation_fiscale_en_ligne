@@ -179,8 +179,8 @@ Trois **vues SQL** alimentent l'historique des transactions, le tableau de bord 
 ### Récupérer le projet
 
 ```bash
-git clone https://github.com/Ranto-nyaina/immatriculation_fiscale_en_ligne
-cd immatriculation_fiscale_en_ligne
+git clone https://github.com/Ranto-nyaina/Immatriculation_fiscale_en_ligne
+cd Immatriculation_fiscale_en_ligne
 ```
 
 ### 1. Backend
