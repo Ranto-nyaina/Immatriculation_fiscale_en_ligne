@@ -46,9 +46,9 @@ Les cas d'utilisation sont classés par ordre de priorité :
 
 <table>
   <tr>
-    <td align="center"><b>Connexion</b><br><br><img src="docs/connexion.jpg" alt="Écran de connexion" width="200"></td>
-    <td align="center"><b>Inscription</b><br><br><img src="docs/inscription.jpg" alt="Écran d'inscription" width="200"></td>
-    <td align="center"><b>Historique</b><br><br><img src="docs/historique.jpg" alt="Historique des transactions et histogramme" width="200"></td>
+    <td align="center"><b>Connexion</b><br><br><img src="docs/connexion.png" alt="Écran de connexion" width="200"></td>
+    <td align="center"><b>Inscription</b><br><br><img src="docs/inscription.png" alt="Écran d'inscription" width="200"></td>
+    <td align="center"><b>Historique</b><br><br><img src="docs/historique.png" alt="Historique des transactions et histogramme" width="200"></td>
     <td align="center"><b>Paramètres</b><br><br><img src="docs/parametres.png" alt="Page des paramètres" width="200"></td>
   </tr>
 </table>
@@ -113,11 +113,22 @@ apk-prenif/
 │   │   ├── migrations/
 │   │   └── models.py             # contribuable, transactions, messages, tokens...
 │   ├── sql/
+|   |   ├── nif.sql               # le base de donnée 
 │   │   └── vues.sql              # vues SQL à créer après les migrations
 │   ├── manage.py
 │   ├── requirements.txt
 │   └── .env.example              # modèle de configuration (à copier en .env)
-├── frontend/                     # application mobile (React Native + Expo)
+├── frontend/                     # application mobile (React Native + Expo Router)
+│   ├── app/
+│   │   ├── (tabs)/               # écrans de l'application (voir le tableau ci-dessous)
+│   │   └── _layout.tsx           # navigation principale
+│   ├── assets/                   # images et polices
+│   ├── components/
+│   ├── constants/
+│   ├── hooks/
+│   ├── app.json
+│   ├── package.json
+│   └── .env                      # adresse de l'API (EXPO_PUBLIC_API_URL), non versionné
 ├── docs/                         # captures d'écran affichées dans ce README
 │   ├── connexion.png
 │   ├── inscription.png
@@ -125,6 +136,22 @@ apk-prenif/
 │   └── parametres.png
 └── README.md
 ```
+
+Écrans de l'application mobile (`frontend/app/(tabs)/`) :
+
+| Fichier | Écran |
+|---|---|
+| `log_in.jsx` | connexion |
+| `sign_up.jsx` | inscription |
+| `motDePasse.jsx` | mot de passe oublié |
+| `accueil.jsx` | accueil |
+| `historique.jsx` | historique des transactions |
+| `histogramme.jsx` | tableau de bord (histogramme annuel) |
+| `chat.jsx` | messages avec le service d'aide |
+| `parametre.jsx` | profil, photo et mot de passe |
+| `deconnexion.jsx` | déconnexion |
+| `apropos.jsx` | à propos |
+| `Admin*.jsx` | écrans administrateur (messages, chat) |
 
 ---
 
