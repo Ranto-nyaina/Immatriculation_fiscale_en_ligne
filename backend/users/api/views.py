@@ -1,8 +1,10 @@
 import logging
+import re
 
 from django.contrib.auth.hashers import check_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import Q, Value
+from django.db.models.functions import Replace
 from rest_framework import generics, status
 from rest_framework.decorators import (
     api_view,
@@ -79,10 +81,41 @@ def names_match(given, official):
     return levenshtein_distance(a, b) <= MAX_NAME_DISTANCE
 
 
+def normalize_cin(value):
+    """Garde uniquement les chiffres : '101 012 345 678' → '101012345678'."""
+    return re.sub(r"\D", "", str(value or ""))
+
+
+def normalize_phone(value):
+    """Chiffres uniquement ; '+261 34 12 345 67' et '034 12 345 67' deviennent identiques."""
+    digits = re.sub(r"\D", "", str(value or ""))
+    if digits.startswith("261") and len(digits) == 12:
+        digits = "0" + digits[3:]
+    return digits
+
+
+def same_phone(a, b):
+    na, nb = normalize_phone(a), normalize_phone(b)
+    return bool(na) and na == nb
+
+
+def find_operateur(cin):
+    """Cherche l'opérateur par CIN, même si la table le stocke avec des espaces ou des tirets."""
+    cin = normalize_cin(cin)
+    if not cin:
+        return None
+    return (
+        Operateur.objects
+        .annotate(cin_norm=Replace(Replace("propr_cin", Value(" "), Value("")), Value("-"), Value("")))
+        .filter(cin_norm=cin)
+        .first()
+    )
+
+
 def GenererPRENIFetMdp(cin):
     # Le CIN doit contenir exactement 12 chiffres
     if len(cin) != 12 or not cin.isdigit():
-        raise ValueError("Le CIN doit contenir exactement 12 chiffres pour générer le PRENIF.")
+        raise ValueError("CIN invalide : 12 chiffres attendus.")
 
     # PRENIF : les 9 derniers chiffres du CIN, précédés de la somme (réduite à 1 chiffre)
     # des 3 premiers de ces 9 chiffres
@@ -119,9 +152,15 @@ def login_view(request):
     password = request.data.get("password") or ""
 
     contribuable = find_by_email(email)
-    # Même réponse si l'e-mail est inconnu ou le mot de passe faux
-    if contribuable is None or not check_password(password, contribuable.password):
-        return Response({"error": "Identifiants incorrects"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if contribuable is None or not check_password(
+        password,
+        contribuable.password
+    ):
+        return Response(
+            {"error": "Identifiants incorrects"},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
 
     try:
         issue_code(contribuable, "login")
@@ -131,11 +170,10 @@ def login_view(request):
             {"error": "Envoi du code impossible, réessayez plus tard."},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
-    return Response({"message": "Code de vérification envoyé par e-mail."})
 
-
-# Renvoi du code : même contrôle (e-mail + mot de passe) que la connexion
-send_verification_email = login_view
+    return Response({
+        "message": "Code de vérification envoyé par e-mail."
+    })
 
 
 @api_view(["POST"])
@@ -143,21 +181,29 @@ send_verification_email = login_view
 @permission_classes([AllowAny])
 @throttle_classes([AuthRateThrottle])
 def verify_code(request):
-    """Étape 2 : vérifie le code et retourne le token de session."""
     email = (request.data.get("email") or "").strip()
     code = str(request.data.get("code") or "").strip()
 
     contribuable = find_by_email(email)
-    if contribuable is None or not check_code(contribuable, "login", code):
-        return Response({"error": "Code invalide ou expiré"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if contribuable is None or not check_code(
+        contribuable,
+        "login",
+        code
+    ):
+        return Response(
+            {"error": "Code invalide ou expiré"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     token = issue_token(contribuable)
+
     return Response({
         "message": "Code vérifié avec succès",
         "token": token.key,
         "prenif": contribuable.propr_prenif,
         "propr_name": contribuable.propr_name,
-        "last_name": contribuable.last_name,
+        "last_name": contribuable.last_name
     })
 
 
@@ -188,9 +234,15 @@ class RegisterContribuable(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # « message » : texte prêt à afficher ; « errors » : détail par champ
+            first = next(iter(serializer.errors.values()))
+            message = str(first[0]) if isinstance(first, list) and first else "Données invalides."
+            return Response(
+                {"message": message, "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         data = serializer.validated_data
-        cin = data["propr_cin"]
+        cin = normalize_cin(data["propr_cin"])
 
         if Contribuable.objects.filter(propr_cin=cin).exists():
             return Response({"message": "Vous avez déjà un compte"}, status=status.HTTP_409_CONFLICT)
@@ -203,8 +255,8 @@ class RegisterContribuable(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        operateur = Operateur.objects.filter(propr_cin=cin).first()
-        if operateur is None or operateur.propr_contact != data["propr_contact"]:
+        operateur = find_operateur(cin)
+        if operateur is None or not same_phone(operateur.propr_contact, data["propr_contact"]):
             return mismatch()
         if not (names_match(data["propr_name"], operateur.propr_name)
                 and names_match(data["last_name"], operateur.last_name)):
@@ -222,7 +274,11 @@ class RegisterContribuable(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
-        user = serializer.save(propr_prenif=prenif, birth_place="Inconnu", bank_acct_no="Aucun")
+        # Ne pas écraser birth_place s'il a été fourni par le client
+        extra = {"propr_cin": cin, "propr_prenif": prenif, "bank_acct_no": "Aucun"}
+        if not serializer.validated_data.get("birth_place"):
+            extra["birth_place"] = "Inconnu"
+        user = serializer.save(**extra)
 
         # Pas de connexion automatique : le contribuable doit passer par
         # la connexion en 2 étapes (mot de passe + code e-mail).
@@ -268,17 +324,15 @@ def change_password(request):
 @throttle_classes([AuthRateThrottle])
 def verify_user(request):
     """Mot de passe oublié, étape 1 : vérifie CIN + e-mail + numéro, envoie un code."""
-    cin = request.data.get("cin")
+    cin = normalize_cin(request.data.get("cin"))
     email = (request.data.get("email") or "").strip()
     numero = request.data.get("numero")
 
     if not (cin and email and numero):
         return Response({"status": "error", "message": "Champs manquants."}, status=status.HTTP_400_BAD_REQUEST)
 
-    user = Contribuable.objects.filter(
-        propr_cin=cin, mailing_address__iexact=email, propr_contact=numero
-    ).first()
-    if user is None:
+    user = Contribuable.objects.filter(propr_cin=cin, mailing_address__iexact=email).first()
+    if user is None or not same_phone(user.propr_contact, numero):
         return Response({"status": "error", "message": "Utilisateur non trouvé !"}, status=status.HTTP_404_NOT_FOUND)
 
     try:
@@ -299,7 +353,7 @@ def verify_user(request):
 def update_password(request):
     """Mot de passe oublié, étape 2 : le code reçu par e-mail est OBLIGATOIRE.
     (Avant : le CIN seul suffisait pour changer le mot de passe de n'importe qui.)"""
-    cin = request.data.get("cin")
+    cin = normalize_cin(request.data.get("cin"))
     code = str(request.data.get("code") or "").strip()
     new_password = request.data.get("newPassword") or ""
 
@@ -361,7 +415,7 @@ def update_user_info(request):
         contribuable.save(update_fields=["photo"])
         return Response({"message": "Informations mises à jour avec succès"})
 
-    operateur = Operateur.objects.filter(propr_cin=contribuable.propr_cin).first()
+    operateur = find_operateur(contribuable.propr_cin)
     if operateur is None:
         return Response({"error": "Opérateur introuvable"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -369,7 +423,7 @@ def update_user_info(request):
        (last_name and not names_match(last_name, operateur.last_name)):
         return Response({"message": "Le nom ne correspond pas dans la base de donnée"}, status=status.HTTP_404_NOT_FOUND)
 
-    if operateur.propr_contact != phone_number:
+    if not same_phone(operateur.propr_contact, phone_number):
         return Response({"message": "Le contact ne correspond pas au C.I.N"}, status=status.HTTP_404_NOT_FOUND)
 
     if propr_name:

@@ -52,45 +52,50 @@ const LoginScreen = () => {
     }, [])
   );
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs.');
-      return;
+const handleLogin = async () => {
+  if (!email || !password) {
+    Alert.alert(
+      'Erreur',
+      'Veuillez remplir tous les champs.'
+    );
+    return;
+  }
+
+  setLoadingLogin(true);
+
+  try {
+    const response = await fetch(`${BASE_URL}/api/login/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setModalVisible(true);
+    } else {
+      Alert.alert(
+        'Erreur',
+        data.error || 'Email ou mot de passe incorrect.'
+      );
     }
+  } catch (error) {
+    console.error('Erreur login:', error);
 
-    setLoadingLogin(true); // Démarre le chargement
-    try {
-      const response = await fetch(`${BASE_URL}/api/login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (response.ok) {
-        const emailResponse = await fetch(`${BASE_URL}/api/send-code/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email }),
-        });
-
-        if (emailResponse.ok) {
-          setModalVisible(true);
-        } else {
-          Alert.alert('Erreur', 'Impossible d’envoyer le code de vérification.');
-        }
-      } else {
-        Alert.alert('Erreur', 'Email ou mot de passe incorrect.');
-      }
-    } catch (error) {
-      Alert.alert('Erreur', 'Problème de connexion avec le serveur.');
-    } finally {
-      setLoadingLogin(false); // Arrête le chargement
-    }
-  };
+    Alert.alert(
+      'Erreur',
+      'Problème de connexion avec le serveur.'
+    );
+  } finally {
+    setLoadingLogin(false);
+  }
+};
 
   const confirmCode = async () => {
     if (!verificationCode) {

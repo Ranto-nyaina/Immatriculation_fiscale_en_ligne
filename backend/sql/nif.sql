@@ -73,31 +73,31 @@ create table operateur(
 );
 
 
-CREATE TABLE CONTRIBUABLE(
-    ID_CONTRIBUABLE SERIAL PRIMARY KEY, -- Gestion de la clé primaire avec SERIAL
-    CREATE_DATE DATE, -- Date de création de la demande
-    DM_CIN VARCHAR(15), -- Numéro de carte d'identité nationale (CIN)
-    PROPR_NAME VARCHAR(100), -- Nom du propriétaire
-    SEX INTEGER REFERENCES genre(id), -- Sexe du demandeur (1 pour homme, 2 pour femme)
-    BIRTH_DATE DATE, -- Date de naissance du demandeur
-    BIRTH_PLACE VARCHAR(120), -- Lieu de naissance du demandeur
-    SIT_MATRIM INTEGER REFERENCES SIT_MATRIM(id), -- Situation matrimoniale (1 pour célibataire, 2 pour marié, etc.)
-    PROPR_CIN VARCHAR(15), -- CIN du propriétaire
-    -- PROPR_ADDRESS VARCHAR(200), -- Adresse du propriétaire
-    DELIVR_CIN_DATE DATE, -- Date de délivrance de la carte d'identité nationale (CIN)
-    CIN_PLACE VARCHAR(120), -- Lieu de délivrance de la carte d'identité nationale (CIN)
-    PROPR_CONTACT VARCHAR(14), -- Contact du propriétaire
-    MAILING_ADDRESS VARCHAR(200), -- Adresse postale
-    BANK_ACCT_NO VARCHAR(250), -- Numéro de compte bancaire de l'entreprise
-    PASSEPORT VARCHAR(20), -- Numéro de passeport du demandeur
-    DM_REF VARCHAR(15), -- Référence de la demande
-    PROPR_PRENIF VARCHAR(10), -- Numéro d'identification fiscale du propriétaire 
-    STATISTIC_NO VARCHAR(21), -- Numéro statistique
-    STATISTIC_DATE DATE, -- Date d'enregistrement statistique
-    FKT_NO INTEGER REFERENCES FOKONTANY(FKT_NO), -- Numéro de fokontany, se réfère à la table FOKONTANY
-    PASSWORD VARCHAR(50),
-    PHOTO VARCHAR(200)
-);
+    CREATE TABLE CONTRIBUABLE(
+        ID_CONTRIBUABLE SERIAL PRIMARY KEY, -- Gestion de la clé primaire avec SERIAL
+        CREATE_DATE DATE, -- Date de création de la demande
+        DM_CIN VARCHAR(15), -- Numéro de carte d'identité nationale (CIN)
+        PROPR_NAME VARCHAR(100), -- Nom du propriétaire
+        SEX INTEGER REFERENCES genre(id), -- Sexe du demandeur (1 pour homme, 2 pour femme)
+        BIRTH_DATE DATE, -- Date de naissance du demandeur
+        BIRTH_PLACE VARCHAR(120), -- Lieu de naissance du demandeur
+        SIT_MATRIM INTEGER REFERENCES SIT_MATRIM(id), -- Situation matrimoniale (1 pour célibataire, 2 pour marié, etc.)
+        PROPR_CIN VARCHAR(15), -- CIN du propriétaire
+        -- PROPR_ADDRESS VARCHAR(200), -- Adresse du propriétaire
+        DELIVR_CIN_DATE DATE, -- Date de délivrance de la carte d'identité nationale (CIN)
+        CIN_PLACE VARCHAR(120), -- Lieu de délivrance de la carte d'identité nationale (CIN)
+        PROPR_CONTACT VARCHAR(14), -- Contact du propriétaire
+        MAILING_ADDRESS VARCHAR(200), -- Adresse postale
+        BANK_ACCT_NO VARCHAR(250), -- Numéro de compte bancaire de l'entreprise
+        PASSEPORT VARCHAR(20), -- Numéro de passeport du demandeur
+        DM_REF VARCHAR(15), -- Référence de la demande
+        PROPR_PRENIF VARCHAR(10), -- Numéro d'identification fiscale du propriétaire 
+        STATISTIC_NO VARCHAR(21), -- Numéro statistique
+        STATISTIC_DATE DATE, -- Date d'enregistrement statistique
+        FKT_NO INTEGER REFERENCES FOKONTANY(FKT_NO), -- Numéro de fokontany, se réfère à la table FOKONTANY
+        PASSWORD VARCHAR(50),
+        PHOTO VARCHAR(200)
+    );
 
 
 
