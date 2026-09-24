@@ -34,9 +34,9 @@ Les cas d'utilisation sont classés par ordre de priorité :
 | 3 | Visualiser ses transactions | Contribuable | Historique des transactions avec recherche, et tableau de bord avec histogramme annuel |
 | 4 | Modifier ses informations | Contribuable | Modification du profil, de la photo et du mot de passe depuis la page Paramètres |
 | 5 | Envoyer un message | Contribuable, administrateur | Questions et demandes d'aide au service d'aide |
-| — | Réinitialiser son mot de passe | Contribuable | Vérification de l'identité (CIN, e-mail, numéro), puis code envoyé par e-mail |
-| — | Gérer les contribuables et les messages | Administrateur | Recherche d'un contribuable par PRENIF, consultation des messages et réponse |
-| — | Civisme fiscal | Contribuable | Consultation de contenus éducatifs (description, questions/réponses, quiz) |
+| 6 | Réinitialiser son mot de passe | Contribuable | Vérification de l'identité (CIN, e-mail, numéro), puis code envoyé par e-mail |
+| 7 | Gérer les contribuables et les messages | Administrateur | Recherche d'un contribuable par PRENIF, consultation des messages et réponse |
+| 8 | Civisme fiscal | Contribuable | Consultation de contenus éducatifs (description, questions/réponses, quiz) |
 
 > **PRENIF :** numéro unique attribué à chaque contribuable pour l'identification fiscale.
 
