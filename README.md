@@ -114,6 +114,7 @@ apk-prenif/
 │   │   └── models.py             # contribuable, transactions, messages, tokens...
 │   ├── sql/
 │   │   ├── nif.sql               # le base de donnée 
+│   │   ├── test_data.sql         #données pour faire le teste
 │   │   └── vues.sql              # vues SQL à créer après les migrations
 │   ├── manage.py
 │   ├── requirements.txt
