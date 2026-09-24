@@ -113,8 +113,8 @@ apk-prenif/
 │   │   ├── migrations/
 │   │   └── models.py             # contribuable, transactions, messages, tokens...
 │   ├── sql/
-│   │    ├── nif.sql               # le base de donnée 
-│   │    └── vues.sql              # vues SQL à créer après les migrations
+│   │   ├── nif.sql               # le base de donnée 
+│   │   └── vues.sql              # vues SQL à créer après les migrations
 │   ├── manage.py
 │   ├── requirements.txt
 │   └── .env.example              # modèle de configuration (à copier en .env)
