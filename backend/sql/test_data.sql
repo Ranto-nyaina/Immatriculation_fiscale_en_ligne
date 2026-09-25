@@ -155,10 +155,10 @@ UNION ALL SELECT 'civisme_fiscale',COUNT(*) FROM civisme_fiscale WHERE descripti
 -- test20@prenif.test -> Test@123456
 --
 -- CIN:
--- 123456789001 -> test01
--- 123456789002 -> test02
+-- 101000000001 -> test01
+-- 101000000002 -> test02
 -- ...
--- 123456789020 -> test20
+-- 101000000020 -> test20
 --
 -- Téléphones:
 -- 0340000001 -> test01
