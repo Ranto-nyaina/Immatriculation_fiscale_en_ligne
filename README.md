@@ -118,7 +118,7 @@ apk-prenif/
 │   │   └── vues.sql              # vues SQL à créer après les migrations
 │   ├── manage.py
 │   ├── requirements.txt
-│   └── .env.example              # modèle de configuration (à copier en .env)
+│   └── .env                      # modèle de configuration (à copier en .env)
 ├── frontend/                     # application mobile (React Native + Expo Router)
 │   ├── app/
 │   │   ├── (tabs)/               # écrans de l'application (voir le tableau ci-dessous)
