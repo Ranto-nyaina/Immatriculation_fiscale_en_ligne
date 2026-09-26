@@ -108,7 +108,7 @@ class Contribuable(models.Model):
     statistic_date = models.DateField(null=True, blank=True)
     fkt_no = models.DateField(null=True, blank=True)
     password = models.CharField(
-        max_length=20,
+        max_length=128,
         validators=[
             MinLengthValidator(8),
             RegexValidator(
