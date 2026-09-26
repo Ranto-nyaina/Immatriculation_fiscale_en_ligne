@@ -79,7 +79,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     mailing_address = serializers.EmailField(max_length=200)
 
     # Optionnels : correspondent aux colonnes réelles de la table contribuable
-    sex = serializers.ChoiceField(choices=Contribuable.genre_choices, required=False, allow_null=True)
+    sexe = serializers.ChoiceField(choices=Contribuable.genre_choices, required=False, allow_null=True)
     birth_date = serializers.DateField(required=False, allow_null=True)
     birth_place = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
     sit_matrim = serializers.ChoiceField(choices=Contribuable.sit_matrim_choices, required=False, allow_null=True)

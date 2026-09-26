@@ -319,7 +319,7 @@ class RegisterContribuable(APIView):
                 return Response(
                     {
                         "message":
-                        "Les informations ne correspondent pas à celles de la base."
+                        "Les informations ne correspondent pas à celles de la base. CIN"
                     },
                     status=status.HTTP_404_NOT_FOUND
                 )
@@ -334,7 +334,7 @@ class RegisterContribuable(APIView):
                 return Response(
                     {
                         "message":
-                        "Les informations ne correspondent pas à celles de la base."
+                        "Les informations ne correspondent pas à celles de la base. TEL"
                     },
                     status=status.HTTP_404_NOT_FOUND
                 )
@@ -349,7 +349,7 @@ class RegisterContribuable(APIView):
                 return Response(
                     {
                         "message":
-                        "Les informations ne correspondent pas à celles de la base."
+                        "Les informations ne correspondent pas à celles de la base. NOM"
                     },
                     status=status.HTTP_404_NOT_FOUND
                 )
@@ -361,7 +361,7 @@ class RegisterContribuable(APIView):
                 return Response(
                     {
                         "message":
-                        "Les informations ne correspondent pas à celles de la base."
+                        "Les informations ne correspondent pas à celles de la base. PRENOM"
                     },
                     status=status.HTTP_404_NOT_FOUND
                 )

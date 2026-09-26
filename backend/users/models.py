@@ -91,7 +91,7 @@ class Contribuable(models.Model):
     dm_cin = models.CharField(max_length=15, null=True, blank=True)
     propr_name = models.CharField(max_length=100, null=True, blank=True)
     last_name = models.CharField(max_length=100, null=True, blank=True)
-    sex = models.IntegerField(choices=genre_choices, null=True, blank=True)
+    sexe = models.IntegerField(choices=genre_choices, null=True, blank=True)
     birth_date = models.DateField(null=True, blank=True)
     birth_place = models.CharField(max_length=120, null=True, blank=True)
     sit_matrim = models.IntegerField(choices=sit_matrim_choices, null=True, blank=True)
