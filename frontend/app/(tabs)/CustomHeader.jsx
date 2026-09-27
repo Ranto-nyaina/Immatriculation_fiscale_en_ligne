@@ -4,6 +4,8 @@ import { DrawerActions, useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
+
 const CustomHeader = () => {
   const navigation = useNavigation();
   const [searchText, setSearchText] = useState('');
@@ -14,17 +16,20 @@ const CustomHeader = () => {
 
   const fetchMessage = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/chat/`);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(`${BASE_URL}/api/chat/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await response.json();
-  
+
       if (data.length > 0) {
         // Trouver l'entrée avec le plus grand ID
-        const lastMessage = data.reduce((max, current) => 
+        const lastMessage = data.reduce((max, current) =>
           current.id > max.id ? current : max
         );
-  
+
         const reponse = lastMessage.reponse; // Texte de la réponse
-  
+
         // Vérifier si une réponse existe
         if (reponse) {
           setNewMessages(true);
@@ -35,13 +40,14 @@ const CustomHeader = () => {
     } catch (error) {
     }
   };
-  
-
 
   // Fetch all transactions
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/transactions/`);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(`${BASE_URL}/api/transactions/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await response.json();
       setTransactions(data);
     } catch (error) {
@@ -56,11 +62,11 @@ const CustomHeader = () => {
     }, [])
   );
 
-  // Automatically refresh transactions and messages periodically
+  // Automatically refresh messages periodically
   useEffect(() => {
     const intervalId = setInterval(() => {
       fetchMessage(); // Refresh messages every 30 seconds
-    }, 5000); // Refresh every 30 seconds
+    }, 30000);
 
     // Cleanup interval when the component is unmounted
     return () => clearInterval(intervalId);

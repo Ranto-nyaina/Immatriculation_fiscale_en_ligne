@@ -10,6 +10,8 @@ import ChatScreen from './chat';
 import ParametreScreen from './parametre';
 import CustomHeader from './CustomHeader';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
+
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -30,7 +32,10 @@ const BarreScreen = () => {
 
   const fetchMessage = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/chat/`);
+      const token = await SecureStore.getItemAsync('auth_token');           
+      const response = await fetch(`${BASE_URL}/api/chat/`, {
+        headers: { 'Authorization': `Bearer ${token}` },                    
+      });
       const data = await response.json();
 
       if (data.length > 0) {
@@ -47,6 +52,7 @@ const BarreScreen = () => {
         }
       }
     } catch (error) {
+      console.log('Erreur fetchMessage :', error);  
     }
   };
 

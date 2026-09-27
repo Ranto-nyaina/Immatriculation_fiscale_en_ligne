@@ -13,6 +13,7 @@ import {
 import { Stack, useNavigation } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
 
 const modalStyles = StyleSheet.create({
   centeredView: {
@@ -90,7 +91,10 @@ export default function HistoriqueScreen() {
   // Récupérer les données depuis l'API
   const fetchData = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/central_recette/`);
+      const token = await SecureStore.getItemAsync('auth_token');           
+      const response = await fetch(`${BASE_URL}/api/central_recette/`, {
+        headers: { 'Authorization': `Bearer ${token}` },                    
+      });
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des données');
       }

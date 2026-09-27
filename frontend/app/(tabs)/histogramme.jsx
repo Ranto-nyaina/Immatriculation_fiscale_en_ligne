@@ -5,6 +5,7 @@ import { Stack, useNavigation } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
 
 export default function DashboardScreen() {
   const [data, setData] = useState({
@@ -36,8 +37,10 @@ export default function DashboardScreen() {
       const fetchData = async () => {
         setIsLoading(true);
         try {
-          // Fetch chart data
-          const response = await fetch(`${BASE_URL}/api/histogramme/`);
+          const token = await SecureStore.getItemAsync('auth_token');
+          const authHeaders = { 'Authorization': `Bearer ${token}` };
+
+          const response = await fetch(`${BASE_URL}/api/histogramme/`, { headers: authHeaders });
           const rawData = await response.json();
 
           const yearData = {};
@@ -73,7 +76,6 @@ export default function DashboardScreen() {
 
           setYearDetails(details);
 
-          // Calculate progression
           if (dataPoints.length >= 2) {
             const lastYear = dataPoints[dataPoints.length - 1];
             const previousYear = dataPoints[dataPoints.length - 2];
@@ -83,8 +85,7 @@ export default function DashboardScreen() {
             setProgression(0);
           }
 
-          // Fetch user transactions
-          const transactionResponse = await fetch(`${BASE_URL}/api/central_recette/`);
+          const transactionResponse = await fetch(`${BASE_URL}/api/central_recette/`, { headers: authHeaders });
           const transactionData = await transactionResponse.json();
           setTransactionsCount(transactionData.length);
 
@@ -294,4 +295,3 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 });
-

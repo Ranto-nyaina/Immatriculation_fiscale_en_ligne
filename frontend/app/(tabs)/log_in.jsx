@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -15,6 +14,7 @@ import {
 import { Link, Stack } from 'expo-router';
 import { useRouter, useFocusEffect } from 'expo-router';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');

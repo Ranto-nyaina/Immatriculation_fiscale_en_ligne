@@ -1,10 +1,11 @@
-import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, BackHandler } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRouter } from 'expo-router';
 import { CommonActions } from '@react-navigation/native';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
+
 const DecScreen = () => {
   const [userInfo, setUserInfo] = useState(null);
   const router = useRouter();
@@ -13,9 +14,9 @@ const DecScreen = () => {
 
   useEffect(() => {
     const backAction = () => {
-      navigation.navigate('Menu'); // Retourner à l'écran précédent
-      navigation.dispatch(CommonActions.reset({index: 0, routes: [{name:'Menu'}]}));
-      return true; // Empêcher le comportement par défaut
+      navigation.navigate('Menu');
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Menu' }] }));
+      return true;
     };
 
     const backHandler = BackHandler.addEventListener(
@@ -23,7 +24,7 @@ const DecScreen = () => {
       backAction
     );
 
-    return () => backHandler.remove(); // Nettoyer l'écouteur lors du démontage du composant
+    return () => backHandler.remove();
   }, [navigation]);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ const DecScreen = () => {
 
   const handleLogout = async () => {
     try {
+      const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(`${BASE_URL}/api/logout/`, {
         method: 'POST',
         headers: {
@@ -51,17 +53,19 @@ const DecScreen = () => {
         body: JSON.stringify({}),
       });
 
+      await SecureStore.deleteItemAsync('auth_token');
+      await AsyncStorage.removeItem('user');
+
       if (response.ok) {
-        await AsyncStorage.removeItem('user');
         Alert.alert('Déconnexion réussie');
-        navigation.navigate('Menu'); // Retourner à l'écran précédent
-        router.replace('/log_in');
-      } else {
-        const errorResponse = await response.json();
-        Alert.alert('Erreur', errorResponse.message || 'Erreur lors de la déconnexion.');
       }
+
+      navigation.navigate('Menu');
+      router.replace('/log_in');
     } catch (error) {
-      Alert.alert('Erreur', 'Erreur lors de la déconnexion.');
+      await SecureStore.deleteItemAsync('auth_token');
+      await AsyncStorage.removeItem('user');
+      router.replace('/log_in');
     }
   };
 

@@ -3,6 +3,8 @@ import { View, TextInput, TouchableOpacity, Text, FlatList, StyleSheet, Alert, B
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
+
 const API_URL = `${BASE_URL}/api/chat/`;
 
 const ChatScreen = () => {
@@ -12,7 +14,10 @@ const ChatScreen = () => {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(API_URL);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(API_URL, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await response.json();
       setMessages(data);
     } catch (error) {
@@ -41,9 +46,13 @@ const ChatScreen = () => {
       const newMessage = { question: message };
 
       try {
+        const token = await SecureStore.getItemAsync('auth_token');
         const response = await fetch(API_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify(newMessage),
         });
 
@@ -95,7 +104,7 @@ const ChatScreen = () => {
   };
 
   useEffect(() => {
-    const interval = setInterval(fetchMessages, 5000);
+    const interval = setInterval(fetchMessages, 30000);
     return () => clearInterval(interval);
   }, [fetchMessages]);
 
@@ -199,4 +208,3 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
-

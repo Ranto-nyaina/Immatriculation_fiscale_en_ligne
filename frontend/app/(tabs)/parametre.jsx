@@ -1,9 +1,9 @@
-import * as SecureStore from 'expo-secure-store';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image, Alert, BackHandler, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
 
 const ParametreScreen = () => {
   const navigation = useNavigation();
