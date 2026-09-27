@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -12,6 +11,8 @@ import {
   ScrollView,
 } from 'react-native';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
+
 const HomeScreen = () => {
   const [data, setData] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -23,14 +24,50 @@ const HomeScreen = () => {
 
   // Fetch data from the API
   useEffect(() => {
-    SecureStore.getItemAsync('auth_token').then((token) => {          
-      fetch(`${BASE_URL}/api/civisme_fiscale/`, {                      
-        headers: { 'Authorization': `Bearer ${token}` },               
-      })
-        .then((response) => response.json())
-        .then((json) => setData(json))
-        .catch((error) => console.log('Erreur civisme fiscal :', error)); 
-    });
+    const loadCivismeFiscal = async () => {
+      try {
+        const token = await SecureStore.getItemAsync('auth_token');
+
+        if (!token) {
+          console.log('Aucun token trouvé');
+          setData([]);
+          return;
+        }
+
+        const response = await fetch(`${BASE_URL}/api/civisme_fiscale/`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const json = await response.json();
+
+        console.log('Réponse civisme fiscal :', json);
+
+        if (!response.ok) {
+          console.log('Erreur API civisme fiscal :', response.status);
+          setData([]);
+          return;
+        }
+
+        // L'API doit retourner un tableau
+        if (Array.isArray(json)) {
+          setData(json);
+        } else if (Array.isArray(json.results)) {
+          // Supporte aussi une réponse paginée DRF
+          setData(json.results);
+        } else {
+          console.log('Format inattendu de la réponse :', json);
+          setData([]);
+        }
+      } catch (error) {
+        console.log('Erreur civisme fiscal :', error);
+        setData([]);
+      }
+    };
+
+    loadCivismeFiscal();
 
     // Handle the back button to exit the app
     const backAction = () => {
@@ -38,7 +75,11 @@ const HomeScreen = () => {
       return true;
     };
 
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
     return () => backHandler.remove();
   }, []);
 
@@ -48,23 +89,27 @@ const HomeScreen = () => {
       onPress={() => {
         setSelectedItem(item);
         setModalVisible(true);
-        setSelectedAnswer(null); // Reset selected answer
-        setQuizResult(''); // Reset quiz result
-        setAnsweredQuestions([]); // Reset answered questions
-        setShuffledOptions({}); // Reset shuffled options
+        setSelectedAnswer(null);
+        setQuizResult('');
+        setAnsweredQuestions([]);
+        setShuffledOptions({});
       }}
     >
-      <Text style={styles.productTitle}>Description: {item.description}</Text>
+      <Text style={styles.productTitle}>
+        Description: {item.description}
+      </Text>
+
       <Text>Question: {item.question}</Text>
-      <Text>Réponse: {item.reponse}</Text>
+
     </TouchableOpacity>
   );
 
   const handleAnswerSelection = (correctAnswer, answer, questionIndex) => {
-    if (answeredQuestions.includes(questionIndex)) return; // Don't allow multiple answers
+    if (answeredQuestions.includes(questionIndex)) return;
 
     setAnsweredQuestions([...answeredQuestions, questionIndex]);
     setSelectedAnswer(correctAnswer);
+
     if (correctAnswer === answer) {
       setQuizResult('Correct!');
     } else {
@@ -73,38 +118,76 @@ const HomeScreen = () => {
   };
 
   const shuffleOptions = (options) => {
-    const shuffled = [...options]; // Create a copy of the options
+    if (!Array.isArray(options)) {
+      return [];
+    }
+
+    const shuffled = [...options];
+
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; // Swap elements
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
+
     return shuffled;
   };
 
   const renderQuiz = (quizz) => {
-    if (!quizz) return <Text>Aucun quiz disponible</Text>;
+    if (!quizz) {
+      return <Text>Aucun quiz disponible</Text>;
+    }
 
-    const parsedQuizz = typeof quizz === 'string' ? JSON.parse(quizz) : quizz;
+    let parsedQuizz;
+
+    try {
+      parsedQuizz =
+        typeof quizz === 'string'
+          ? JSON.parse(quizz)
+          : quizz;
+    } catch (error) {
+      console.log('Erreur parsing du quiz :', error);
+      return <Text>Quiz invalide</Text>;
+    }
+
+    // Vérification importante pour éviter .map() sur undefined
+    if (
+      !parsedQuizz ||
+      !Array.isArray(parsedQuizz.questions)
+    ) {
+      return <Text>Aucune question disponible</Text>;
+    }
 
     return (
       <View>
-        <Text style={styles.quizTitle}>{parsedQuizz.quiz_title}</Text>
+        <Text style={styles.quizTitle}>
+          {parsedQuizz.quiz_title || 'Quiz'}
+        </Text>
+
         {parsedQuizz.questions.map((q, index) => {
-          // Check if options have already been shuffled for this question
-          if (!shuffledOptions[index]) {
-            setShuffledOptions((prevOptions) => ({
-              ...prevOptions,
-              [index]: shuffleOptions(q.options), // Shuffle options once
-            }));
+          // Vérification des données de la question
+          if (!q || !Array.isArray(q.options)) {
+            return (
+              <View key={index} style={styles.quizItem}>
+                <Text style={styles.quizQuestion}>
+                  {index + 1}. {q?.q || 'Question indisponible'}
+                </Text>
+
+                <Text>Aucune option disponible</Text>
+              </View>
+            );
           }
 
-          const options = shuffledOptions[index] || q.options; // Use shuffled or original options
+          // Si les options n'ont pas encore été mélangées,
+          // utiliser directement les options originales.
+          const options =
+            shuffledOptions[index] || q.options;
 
           return (
             <View key={index} style={styles.quizItem}>
               <Text style={styles.quizQuestion}>
                 {index + 1}. {q.q}
               </Text>
+
               <View style={styles.quizOptions}>
                 {options.map((option, idx) => (
                   <TouchableOpacity
@@ -112,14 +195,21 @@ const HomeScreen = () => {
                     style={[
                       styles.quizOption,
                       selectedAnswer && {
-                        backgroundColor: option === selectedAnswer
-                          ? option === q.answer
-                            ? 'green'
-                            : 'red'
-                          : 'transparent',
+                        backgroundColor:
+                          option === selectedAnswer
+                            ? option === q.answer
+                              ? 'green'
+                              : 'red'
+                            : 'transparent',
                       },
                     ]}
-                    onPress={() => handleAnswerSelection(option, q.answer, index)}
+                    onPress={() =>
+                      handleAnswerSelection(
+                        option,
+                        q.answer,
+                        index
+                      )
+                    }
                   >
                     <Text>{option}</Text>
                   </TouchableOpacity>
@@ -137,8 +227,13 @@ const HomeScreen = () => {
       <FlatList
         data={data}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) =>
+          item?.id
+            ? item.id.toString()
+            : index.toString()
+        }
       />
+
       <Modal
         visible={modalVisible}
         transparent={true}
@@ -149,13 +244,20 @@ const HomeScreen = () => {
           <View style={styles.modalView}>
             {selectedItem && (
               <ScrollView>
-                <Text style={styles.modalText}>Quiz</Text>
+                <Text style={styles.modalText}>
+                  Quiz
+                </Text>
+
                 {renderQuiz(selectedItem.quizz)}
+
                 {selectedAnswer && (
-                  <Text style={styles.quizResult}>{quizResult}</Text>
+                  <Text style={styles.quizResult}>
+                    {quizResult}
+                  </Text>
                 )}
               </ScrollView>
             )}
+
             <View style={styles.modalButtons}>
               <Button
                 title="Fermer"

@@ -626,7 +626,7 @@ class TransactionSearchView(APIView):
 
 
 class CivismeFiscaleList(generics.ListAPIView):
-    # Accessible à tout utilisateur authentifié (permission par défaut)
+    permission_classes = [IsContribuable]
     queryset = CivismeFiscale.objects.all()
     serializer_class = CivismeFiscaleSerializer
 

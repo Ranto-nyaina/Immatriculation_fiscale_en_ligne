@@ -68,19 +68,244 @@ INSERT INTO contribuable (id_contribuable,create_date,dm_cin,propr_name,last_nam
 ON CONFLICT (id_contribuable) DO UPDATE SET create_date=EXCLUDED.create_date,propr_name=EXCLUDED.propr_name,last_name=EXCLUDED.last_name,sex=EXCLUDED.sex,birth_date=EXCLUDED.birth_date,birth_place=EXCLUDED.birth_place,sit_matrim=EXCLUDED.sit_matrim,propr_cin=EXCLUDED.propr_cin,delivr_cin_date=EXCLUDED.delivr_cin_date,cin_place=EXCLUDED.cin_place,propr_contact=EXCLUDED.propr_contact,mailing_address=EXCLUDED.mailing_address,bank_acct_no=EXCLUDED.bank_acct_no,propr_prenif=EXCLUDED.propr_prenif,password=EXCLUDED.password;
 
 -- 10 CIVISME FISCALE
-INSERT INTO civisme_fiscale (id,video,description,question,reponse,quizz) VALUES
-(1,decode('','hex'),'TEST - Question 1','Question de test 1 ?','Réponse de test 1.','{"question":"Question de test 1 ?","options":["Réponse de test 1","Option B","Option C"],"answer":"Réponse de test 1"}'::jsonb),
-(2,decode('','hex'),'TEST - Question 2','Question de test 2 ?','Réponse de test 2.','{"question":"Question de test 2 ?","options":["Réponse de test 2","Option B","Option C"],"answer":"Réponse de test 2"}'::jsonb),
-(3,decode('','hex'),'TEST - Question 3','Question de test 3 ?','Réponse de test 3.','{"question":"Question de test 3 ?","options":["Réponse de test 3","Option B","Option C"],"answer":"Réponse de test 3"}'::jsonb),
-(4,decode('','hex'),'TEST - Question 4','Question de test 4 ?','Réponse de test 4.','{"question":"Question de test 4 ?","options":["Réponse de test 4","Option B","Option C"],"answer":"Réponse de test 4"}'::jsonb),
-(5,decode('','hex'),'TEST - Question 5','Question de test 5 ?','Réponse de test 5.','{"question":"Question de test 5 ?","options":["Réponse de test 5","Option B","Option C"],"answer":"Réponse de test 5"}'::jsonb),
-(6,decode('','hex'),'TEST - Question 6','Question de test 6 ?','Réponse de test 6.','{"question":"Question de test 6 ?","options":["Réponse de test 6","Option B","Option C"],"answer":"Réponse de test 6"}'::jsonb),
-(7,decode('','hex'),'TEST - Question 7','Question de test 7 ?','Réponse de test 7.','{"question":"Question de test 7 ?","options":["Réponse de test 7","Option B","Option C"],"answer":"Réponse de test 7"}'::jsonb),
-(8,decode('','hex'),'TEST - Question 8','Question de test 8 ?','Réponse de test 8.','{"question":"Question de test 8 ?","options":["Réponse de test 8","Option B","Option C"],"answer":"Réponse de test 8"}'::jsonb),
-(9,decode('','hex'),'TEST - Question 9','Question de test 9 ?','Réponse de test 9.','{"question":"Question de test 9 ?","options":["Réponse de test 9","Option B","Option C"],"answer":"Réponse de test 9"}'::jsonb),
-(10,decode('','hex'),'TEST - Question 10','Question de test 10 ?','Réponse de test 10.','{"question":"Question de test 10 ?","options":["Réponse de test 10","Option B","Option C"],"answer":"Réponse de test 10"}'::jsonb)
-ON CONFLICT (id) DO UPDATE SET video=EXCLUDED.video,description=EXCLUDED.description,question=EXCLUDED.question,reponse=EXCLUDED.reponse,quizz=EXCLUDED.quizz;
+-- ============================================================
+-- PRENIF - CIVISME FISCAL
+-- Données de test réalistes
+-- Compatible avec HomeScreen.jsx
+-- PostgreSQL
+-- ============================================================
 
+INSERT INTO civisme_fiscale
+(id, video, description, question, reponse, quizz)
+VALUES
+
+(
+    1,
+    decode('', 'hex'),
+    'Comprendre le rôle de l''impôt dans la société.',
+    'Pourquoi les citoyens doivent-ils payer des impôts ?',
+    'Pour contribuer au financement des services publics.',
+    '{
+        "quiz_title": "Le rôle de l''impôt",
+        "questions": [
+            {
+                "q": "Pourquoi les citoyens doivent-ils payer des impôts ?",
+                "options": [
+                    "Pour contribuer au financement des services publics.",
+                    "Pour recevoir automatiquement un salaire.",
+                    "Pour éviter toute activité professionnelle."
+                ],
+                "answer": "Pour contribuer au financement des services publics."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    2,
+    decode('', 'hex'),
+    'Les recettes fiscales participent au financement des services publics.',
+    'À quoi peuvent servir les recettes fiscales collectées par l''État ?',
+    'À financer notamment les services et infrastructures publics.',
+    '{
+        "quiz_title": "Les recettes fiscales",
+        "questions": [
+            {
+                "q": "À quoi peuvent servir les recettes fiscales collectées par l''État ?",
+                "options": [
+                    "À financer notamment les services et infrastructures publics.",
+                    "Uniquement à financer les entreprises privées.",
+                    "À supprimer les services publics."
+                ],
+                "answer": "À financer notamment les services et infrastructures publics."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    3,
+    decode('', 'hex'),
+    'L''identification fiscale permet à l''administration de reconnaître un contribuable.',
+    'Quel est l''intérêt de l''identification fiscale d''un contribuable ?',
+    'Permettre son identification auprès de l''administration fiscale.',
+    '{
+        "quiz_title": "L''identification fiscale",
+        "questions": [
+            {
+                "q": "Quel est l''intérêt de l''identification fiscale d''un contribuable ?",
+                "options": [
+                    "Permettre son identification auprès de l''administration fiscale.",
+                    "Remplacer sa carte bancaire.",
+                    "Créer automatiquement un compte bancaire."
+                ],
+                "answer": "Permettre son identification auprès de l''administration fiscale."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    4,
+    decode('', 'hex'),
+    'La déclaration fiscale permet au contribuable de communiquer les informations nécessaires à l''administration.',
+    'Pourquoi une déclaration fiscale doit-elle être remplie correctement ?',
+    'Pour transmettre des informations exactes à l''administration fiscale.',
+    '{
+        "quiz_title": "La déclaration fiscale",
+        "questions": [
+            {
+                "q": "Pourquoi une déclaration fiscale doit-elle être remplie correctement ?",
+                "options": [
+                    "Pour transmettre des informations exactes à l''administration fiscale.",
+                    "Pour éviter toute identification du contribuable.",
+                    "Pour supprimer les obligations fiscales."
+                ],
+                "answer": "Pour transmettre des informations exactes à l''administration fiscale."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    5,
+    decode('', 'hex'),
+    'La facture et les justificatifs permettent de conserver une trace des opérations.',
+    'Pourquoi est-il important de conserver ses documents fiscaux et justificatifs ?',
+    'Pour pouvoir justifier les opérations et informations déclarées.',
+    '{
+        "quiz_title": "Les justificatifs fiscaux",
+        "questions": [
+            {
+                "q": "Pourquoi est-il important de conserver ses documents fiscaux et justificatifs ?",
+                "options": [
+                    "Pour pouvoir justifier les opérations et informations déclarées.",
+                    "Pour remplacer les documents d''identité.",
+                    "Pour éviter toute déclaration fiscale."
+                ],
+                "answer": "Pour pouvoir justifier les opérations et informations déclarées."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    6,
+    decode('', 'hex'),
+    'Le civisme fiscal repose notamment sur le respect des obligations fiscales.',
+    'Quel comportement correspond au civisme fiscal ?',
+    'Respecter ses obligations fiscales et fournir des informations exactes.',
+    '{
+        "quiz_title": "Le civisme fiscal",
+        "questions": [
+            {
+                "q": "Quel comportement correspond au civisme fiscal ?",
+                "options": [
+                    "Respecter ses obligations fiscales et fournir des informations exactes.",
+                    "Cacher volontairement ses activités imposables.",
+                    "Fournir volontairement de fausses informations."
+                ],
+                "answer": "Respecter ses obligations fiscales et fournir des informations exactes."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    7,
+    decode('', 'hex'),
+    'La transparence contribue à une meilleure relation entre le contribuable et l''administration.',
+    'Que doit faire un contribuable lorsqu''une information fiscale est incorrecte ?',
+    'Signaler ou corriger l''information selon la procédure applicable.',
+    '{
+        "quiz_title": "La transparence fiscale",
+        "questions": [
+            {
+                "q": "Que doit faire un contribuable lorsqu''une information fiscale est incorrecte ?",
+                "options": [
+                    "Signaler ou corriger l''information selon la procédure applicable.",
+                    "Ignorer définitivement l''erreur.",
+                    "Créer plusieurs identités fiscales."
+                ],
+                "answer": "Signaler ou corriger l''information selon la procédure applicable."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    8,
+    decode('', 'hex'),
+    'Le paiement des impôts fait partie des obligations fiscales prévues par la réglementation applicable.',
+    'Que doit faire un contribuable lorsqu''un impôt est légalement dû ?',
+    'S''acquitter de l''impôt selon les règles et délais applicables.',
+    '{
+        "quiz_title": "Le paiement de l''impôt",
+        "questions": [
+            {
+                "q": "Que doit faire un contribuable lorsqu''un impôt est légalement dû ?",
+                "options": [
+                    "S''acquitter de l''impôt selon les règles et délais applicables.",
+                    "Ne jamais effectuer le paiement.",
+                    "Supprimer son identification fiscale."
+                ],
+                "answer": "S''acquitter de l''impôt selon les règles et délais applicables."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    9,
+    decode('', 'hex'),
+    'Le respect des échéances permet au contribuable de respecter ses obligations fiscales.',
+    'Pourquoi faut-il respecter les échéances fiscales ?',
+    'Pour respecter les obligations fiscales dans les délais prévus.',
+    '{
+        "quiz_title": "Les échéances fiscales",
+        "questions": [
+            {
+                "q": "Pourquoi faut-il respecter les échéances fiscales ?",
+                "options": [
+                    "Pour respecter les obligations fiscales dans les délais prévus.",
+                    "Pour supprimer les obligations fiscales.",
+                    "Pour éviter toute déclaration."
+                ],
+                "answer": "Pour respecter les obligations fiscales dans les délais prévus."
+            }
+        ]
+    }'::jsonb
+),
+
+(
+    10,
+    decode('', 'hex'),
+    'Le contribuable doit utiliser les procédures officielles de l''administration fiscale.',
+    'Quelle est la bonne pratique lorsqu''un contribuable souhaite effectuer une démarche fiscale ?',
+    'Utiliser les services et procédures officiels prévus par l''administration.',
+    '{
+        "quiz_title": "Les démarches fiscales",
+        "questions": [
+            {
+                "q": "Quelle est la bonne pratique lorsqu''un contribuable souhaite effectuer une démarche fiscale ?",
+                "options": [
+                    "Utiliser les services et procédures officiels prévus par l''administration.",
+                    "Utiliser systématiquement une fausse identité.",
+                    "Éviter toute communication avec l''administration."
+                ],
+                "answer": "Utiliser les services et procédures officiels prévus par l''administration."
+            }
+        ]
+    }'::jsonb
+)
+
+ON CONFLICT (id) DO UPDATE SET
+    video = EXCLUDED.video,
+    description = EXCLUDED.description,
+    question = EXCLUDED.question,
+    reponse = EXCLUDED.reponse,
+    quizz = EXCLUDED.quizz;
+    
 -- 20 CENTRAL_RECETTE : 2 par contribuable
 INSERT INTO central_recette (id_transaction,id_contribuable_id,id_centre_recette,regisseur,logiciel_id,ref_trans,ref_reglement,daty,mouvement,moyen_paiement,rib,prenif,raison_sociale,nimp_id,numrec,libelle,flag,date_debut,date_fin,periode,periode2,mnt_ap,base,imp_detail,da,banque,annee_recouvrement,code_bureau,libelle_bureau) VALUES
 (1,1,'CENTRE-001','REG-001',2,'TEST-TRANS-001','TEST-REG-001','2026-01-10','1','01',NULL,'100000001','Jean Rakoto',2,5001,'IR','N','2026-01-01','2026-03-30',1 if month==1 else 2,'T1',105000,1050000,'Declaration',1,'BNI' if i%2 else 'BOA',2026,'BUREAU-001','Centre Fiscal 001'),

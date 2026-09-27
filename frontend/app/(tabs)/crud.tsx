@@ -1,3 +1,4 @@
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -11,8 +12,6 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import BASE_URL from './config/config';
-import * as SecureStore from 'expo-secure-store';
-
 const HomeScreen = () => {
   const [data, setData] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -29,17 +28,11 @@ const HomeScreen = () => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      const token = await SecureStore.getItemAsync('auth_token');
-      const response = await fetch(`${BASE_URL}/api/civisme_fiscale/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const json = await response.json();
-      setData(json);
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les données.');
-    }
+  const fetchData = () => {
+    fetch(`${BASE_URL}/api/civisme_fiscale/`)
+      .then((response) => response.json())
+      .then((json) => setData(json))
+      .catch((error) => Alert.alert('Erreur', 'Impossible de charger les données.'));
   };
 
   const selectVideo = async () => {
@@ -55,8 +48,7 @@ const HomeScreen = () => {
     }
   };
 
-  const createItem = async () => {
-    const token = await SecureStore.getItemAsync('auth_token');
+  const createItem = () => {
     const formData = new FormData();
     formData.append('description', newItem.description);
     formData.append('question', newItem.question);
@@ -87,8 +79,7 @@ const HomeScreen = () => {
       .catch(() => Alert.alert('Erreur', 'Erreur lors de la création.'));
   };
 
-  const updateItem = async () => {
-    const token = await SecureStore.getItemAsync('auth_token');
+  const updateItem = () => {
     const formData = new FormData();
     formData.append('description', selectedItem.description);
     formData.append('question', selectedItem.question);
@@ -118,11 +109,9 @@ const HomeScreen = () => {
       .catch(() => Alert.alert('Erreur', 'Erreur lors de la mise à jour.'));
   };
 
-  const deleteItem = async (id) => {
-    const token = await SecureStore.getItemAsync('auth_token');
+  const deleteItem = (id) => {
     fetch(`${BASE_URL}/api/civisme_fiscale/${id}/`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` },
     })
       .then(() => {
         setData(data.filter((item) => item.id !== id));

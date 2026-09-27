@@ -1,10 +1,3 @@
-"""
-Authentification des contribuables par token (avec expiration),
-codes de vérification par e-mail, permissions et limitation de débit.
-
-Remplace l'ancienne authentification par session (request.session['prenif']).
-"""
-
 import logging
 import secrets
 from datetime import timedelta
