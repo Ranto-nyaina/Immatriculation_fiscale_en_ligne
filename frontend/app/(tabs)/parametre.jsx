@@ -1,8 +1,8 @@
+import * as SecureStore from 'expo-secure-store';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image, Alert, BackHandler, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import BASE_URL from './config/config';
 
 const ParametreScreen = () => {
@@ -35,6 +35,10 @@ const ParametreScreen = () => {
   }, []);
 
   useEffect(() => {
+    SecureStore.getItemAsync('auth_token').then(setUserToken);
+  }, []);
+
+  useEffect(() => {
     const backAction = () => {
       navigation.navigate('Menu');
       return true;
@@ -55,10 +59,12 @@ const ParametreScreen = () => {
 
   const fetchUserData = async () => {
     try {
+      const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(`${BASE_URL}/api/get_user_info/`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
       });
       const data = await response.json();

@@ -102,7 +102,7 @@ const SignupScreen = () => {
 
         if (response.status === 201) {
           Alert.alert('Info', 'Votre nom dans l\'operateur est: '+data.user.propr_name+ ' ' + data.user.last_name + ' et vous porte le PRENIF: '+ data.user.propr_prenif);
-          router.push('/drawer');
+          router.push('/log_in');
         } else {
           if (response.status === 400) {
             Alert.alert('Erreur', 'Le mot de passe est invalide. Il doit contenir au moins 8 caractères et forte.');

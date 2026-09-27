@@ -1,3 +1,4 @@
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -113,9 +114,10 @@ const handleLogin = async () => {
         body: JSON.stringify({ email, code: verificationCode }),
       });
   
-      const data = await response.json(); // Convertir la réponse en JSON
+       const data = await response.json(); // Convertir la réponse en JSON
   
       if (response.ok) {
+        await SecureStore.setItemAsync('auth_token', data.token);
         setModalVisible(false);
         setEmail('');
         setPassword('');

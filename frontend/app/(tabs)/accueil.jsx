@@ -1,3 +1,4 @@
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -20,25 +21,24 @@ const HomeScreen = () => {
   const [answeredQuestions, setAnsweredQuestions] = useState([]);
   const [shuffledOptions, setShuffledOptions] = useState({});
 
+  // Fetch data from the API
   useEffect(() => {
-    // Fetch data from the API
-    fetch(`${BASE_URL}/api/civisme_fiscale/`)
-      .then((response) => response.json())
-      .then((json) => setData(json))
-      .catch();
+    SecureStore.getItemAsync('auth_token').then((token) => {          
+      fetch(`${BASE_URL}/api/civisme_fiscale/`, {                      
+        headers: { 'Authorization': `Bearer ${token}` },               
+      })
+        .then((response) => response.json())
+        .then((json) => setData(json))
+        .catch((error) => console.log('Erreur civisme fiscal :', error)); 
+    });
 
     // Handle the back button to exit the app
     const backAction = () => {
       BackHandler.exitApp();
-      return true; // Prevent default back navigation
+      return true;
     };
 
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction
-    );
-
-    // Clean up the event listener on component unmount
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
     return () => backHandler.remove();
   }, []);
 

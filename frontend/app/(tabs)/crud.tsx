@@ -1,3 +1,4 @@
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -64,6 +65,7 @@ const HomeScreen = () => {
       method: 'POST',
       headers: {
         'Content-Type': 'multipart/form-data',
+        'Authorization': `Bearer ${token}`,
       },
       body: formData,
     })
@@ -94,6 +96,7 @@ const HomeScreen = () => {
       method: 'PUT',
       headers: {
         'Content-Type': 'multipart/form-data',
+        'Authorization': `Bearer ${token}`,
       },
       body: formData,
     })
