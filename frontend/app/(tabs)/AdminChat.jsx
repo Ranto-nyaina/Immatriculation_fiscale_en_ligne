@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Stack, useNavigation } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import * as SecureStore from 'expo-secure-store';
 import BASE_URL from './config/config';
 
 export default function AdminchatScreen() {
@@ -43,7 +44,10 @@ export default function AdminchatScreen() {
   // Récupérer les données depuis l'API
   const fetchData = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/AdminMessages/`);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(`${BASE_URL}/api/AdminMessages/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des données');
       }

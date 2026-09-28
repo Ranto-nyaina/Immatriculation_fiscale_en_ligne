@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -12,6 +11,8 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import BASE_URL from './config/config';
+import * as SecureStore from 'expo-secure-store';
+
 const HomeScreen = () => {
   const [data, setData] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);

@@ -67,13 +67,12 @@ ROOT_URLCONF = "myApp.urls"
 # Par défaut, toute la API exige un token valide.
 # Les vues de connexion et d'inscription doivent déclarer
 # permission_classes = [AllowAny] (voir l'exemple dans la réponse).
-# Deux types d'authentification, distingués par le mot-clé de l'en-tête :
-#   Authorization: Bearer <token>  → contribuables (token avec expiration)
-#   Authorization: Token <token>   → administrateurs (comptes Django is_staff)
+# Un seul en-tête pour tout le monde : Authorization: Bearer <token>
+#   contribuables  → token de 7 jours
+#   administrateurs (comptes Django is_staff) → token de 12 heures
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "users.api.auth.ContribuableTokenAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
@@ -100,8 +99,9 @@ DATABASES = {
         "NAME": os.environ.get("DB_NAME", "nif"),
         "USER": os.environ.get("DB_USER", "postgres"),
         "PASSWORD": os.environ["DB_PASSWORD"],
-        "HOST": os.environ.get("DB_HOST", "localhost"),
+        "HOST": os.environ.get("DB_HOST", "127.0.0.1"),  # 127.0.0.1 évite les lenteurs de résolution de « localhost » (IPv6) sous Windows
         "PORT": os.environ.get("DB_PORT", "5432"),
+        "CONN_MAX_AGE": 60,  # réutilise la connexion au lieu d'en ouvrir une par requête
     }
 }
 
@@ -158,6 +158,7 @@ EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+EMAIL_TIMEOUT = 15  # sans délai, un blocage Gmail fige la requête indéfiniment
 EMAIL_HOST_USER = os.environ["EMAIL_HOST_USER"]
 EMAIL_HOST_PASSWORD = os.environ["EMAIL_HOST_PASSWORD"]
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

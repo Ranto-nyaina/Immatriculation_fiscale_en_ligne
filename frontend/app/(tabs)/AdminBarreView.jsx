@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as SecureStore from 'expo-secure-store';
 import AdminChat from './AdminChat';
 import AboutContactScreen from './apropos';
 import DecScreen from './deconnexion';
@@ -10,7 +11,7 @@ import AdminCustomHeader from './AdminCustomHeader';
 import AdminchatScreen from './AdminChat';
 import AdminMessageScreen from './AdminMessage';
 import BASE_URL from './config/config';
-import ParametreScreen from './parametre';
+
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -31,12 +32,20 @@ const BarreAdminScreen = () => {
 
   const fetchMessage = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/AdminMessages/`);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(`${BASE_URL}/api/AdminMessages/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await response.json();
-  
+
+      if (!Array.isArray(data)) {
+        setNewMessages(false);
+        return;
+      }
+
       // Extract the 'questions' field from each item in the data
       const reponse = data.map(item => item.questions);
-  
+
       // Check if 'reponse' is not null or contains valid data
       if (reponse.some(question => question !== null && question !== undefined)) {
         setNewMessages(true);
@@ -46,7 +55,7 @@ const BarreAdminScreen = () => {
     } catch (error) {
     }
   };
-  
+
   useEffect(() => {
     fetchMessage();
 
@@ -68,7 +77,7 @@ const BarreAdminScreen = () => {
         options={{
           drawerLabel: ({ color }) => (
             <View style={styles.labelContainer}>
-             <Text style={[styles.labelText, { color }]}>Aide</Text>
+              <Text style={[styles.labelText, { color }]}>Aide</Text>
               {hasNewMessages && <View style={styles.notificationDot} />}
             </View>
           ),
@@ -77,15 +86,6 @@ const BarreAdminScreen = () => {
           ),
         }}
       />
-      <Drawer.Screen
-      name="Parametre"
-      component={ParametreScreen}
-      options={{
-        drawerIcon: ({ color, size }) => (
-          <Ionicons name="settings-outline" size={size} color={color} />
-        ),
-      }}
-    />
       <Drawer.Screen
         name="A propos"
         component={AboutContactScreen}
@@ -112,23 +112,22 @@ const styles = StyleSheet.create({
   labelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1, // Permet de remplir tout l'espace disponible
+    flex: 1,
   },
   labelText: {
     fontSize: 16,
     color: 'black',
   },
   notificationDot: {
-    position: 'absolute', // Position absolue
-    right: -25, // Place le point complètement à droite
-    top: '50%', // Centrer verticalement
-    transform: [{ translateY: -4 }], // Ajustement pour centrer précisément
+    position: 'absolute',
+    right: -25,
+    top: '50%',
+    transform: [{ translateY: -4 }],
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#1379CD',
   },
 });
-
 
 export default BarreAdminScreen;

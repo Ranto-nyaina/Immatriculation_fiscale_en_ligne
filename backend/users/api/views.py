@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q, Value
 from django.db.models.functions import Replace
 from rest_framework import generics, status
+from rest_framework.authtoken.models import Token as AdminToken
 from rest_framework.decorators import (
     api_view,
     authentication_classes,
@@ -33,9 +34,11 @@ from .auth import (
     IsContribuable,
     IsStaff,
     check_code,
-    find_by_email,
+    find_account,
+    issue_admin_token,
     issue_code,
     issue_token,
+    password_ok,
 )
 from .serializers import (
     CentralRecetteSerializer,
@@ -151,29 +154,25 @@ def login_view(request):
     email = (request.data.get("email") or "").strip()
     password = request.data.get("password") or ""
 
-    contribuable = find_by_email(email)
-
-    if contribuable is None or not check_password(
-        password,
-        contribuable.password
-    ):
-        return Response(
-            {"error": "Identifiants incorrects"},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
+    # Contribuable ou administrateur : même écran, même contrôle
+    account = find_account(email)
+    # Même réponse si l'e-mail est inconnu ou le mot de passe faux
+    if account is None or not password_ok(account, password):
+        return Response({"error": "Identifiants incorrects"}, status=status.HTTP_401_UNAUTHORIZED)
 
     try:
-        issue_code(contribuable, "login")
+        issue_code(account, "login")
     except Exception:
         logger.exception("Échec d'envoi du code de connexion")
         return Response(
             {"error": "Envoi du code impossible, réessayez plus tard."},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
+    return Response({"message": "Code de vérification envoyé par e-mail."})
 
-    return Response({
-        "message": "Code de vérification envoyé par e-mail."
-    })
+
+# Renvoi du code : même contrôle (e-mail + mot de passe) que la connexion
+send_verification_email = login_view
 
 
 @api_view(["POST"])
@@ -181,35 +180,39 @@ def login_view(request):
 @permission_classes([AllowAny])
 @throttle_classes([AuthRateThrottle])
 def verify_code(request):
+    """Étape 2 : vérifie le code et retourne le token de session."""
     email = (request.data.get("email") or "").strip()
     code = str(request.data.get("code") or "").strip()
 
-    contribuable = find_by_email(email)
+    account = find_account(email)
+    if account is None or not check_code(account, "login", code):
+        return Response({"error": "Code invalide ou expiré"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if contribuable is None or not check_code(
-        contribuable,
-        "login",
-        code
-    ):
-        return Response(
-            {"error": "Code invalide ou expiré"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    if isinstance(account, Contribuable):
+        token = issue_token(account)
+        return Response({
+            "message": "Code vérifié avec succès",
+            "token": token.key,
+            "role": "contribuable",
+            "prenif": account.propr_prenif,
+            "propr_name": account.propr_name,
+            "last_name": account.last_name,
+        })
 
-    token = issue_token(contribuable)
-
+    token = issue_admin_token(account)
     return Response({
         "message": "Code vérifié avec succès",
         "token": token.key,
-        "prenif": contribuable.propr_prenif,
-        "propr_name": contribuable.propr_name,
-        "last_name": contribuable.last_name
+        "role": "admin",
+        "prenif": None,
+        "propr_name": account.first_name or account.username,
+        "last_name": account.last_name,
     })
 
 
 @api_view(["POST"])
 def logout_view(request):
-    if isinstance(request.auth, AuthToken):
+    if isinstance(request.auth, (AuthToken, AdminToken)):
         request.auth.delete()
     return Response({"message": "Déconnexion réussie"})
 
@@ -217,8 +220,11 @@ def logout_view(request):
 @api_view(["GET", "POST"])
 @permission_classes([AllowAny])
 def check_session(request):
-    if isinstance(request.user, Contribuable):
-        return Response({"isAuthenticated": True, "prenif": request.user.propr_prenif})
+    user = request.user
+    if isinstance(user, Contribuable):
+        return Response({"isAuthenticated": True, "role": "contribuable", "prenif": user.propr_prenif})
+    if user.is_authenticated and getattr(user, "is_staff", False):
+        return Response({"isAuthenticated": True, "role": "admin", "prenif": None})
     return Response({"isAuthenticated": False})
 
 
@@ -232,213 +238,66 @@ class RegisterContribuable(APIView):
     throttle_classes = [AuthRateThrottle]
 
     def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        if not serializer.is_valid():
+            # « message » : texte prêt à afficher ; « errors » : détail par champ
+            first = next(iter(serializer.errors.values()))
+            message = str(first[0]) if isinstance(first, list) and first else "Données invalides."
+            return Response(
+                {"message": message, "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        data = serializer.validated_data
+        cin = normalize_cin(data["propr_cin"])
+
+        if Contribuable.objects.filter(propr_cin=cin).exists():
+            return Response({"message": "Vous avez déjà un compte"}, status=status.HTTP_409_CONFLICT)
+
+        # Un seul message pour tous les échecs de vérification d'identité
+        # (évite de révéler quel élément est faux)
+        def mismatch():
+            return Response(
+                {"message": "Les informations ne correspondent pas à celles de la base."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        operateur = find_operateur(cin)
+        if operateur is None or not same_phone(operateur.propr_contact, data["propr_contact"]):
+            return mismatch()
+        if not (names_match(data["propr_name"], operateur.propr_name)
+                and names_match(data["last_name"], operateur.last_name)):
+            return mismatch()
+
         try:
-            # =========================
-            # Récupération des données
-            # =========================
-            email = (request.data.get("email") or "").strip()
-            password = request.data.get("password") or ""
+            prenif = GenererPRENIFetMdp(cin)
+        except ValueError as e:
+            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-            propr_name = (request.data.get("propr_name") or "").strip()
-            last_name = (request.data.get("last_name") or "").strip()
-
-            propr_cin = normalize_cin(request.data.get("propr_cin"))
-            propr_contact = request.data.get("propr_contact") or ""
-
-            birth_date = request.data.get("birth_date")
-            birth_place = (request.data.get("birth_place") or "").strip()
-
-            sexe = request.data.get("sexe")
-            sit_matrim = request.data.get("sit_matrim")
-
-            delivr_cin_date = request.data.get("delivr_cin_date")
-            cin_place = (request.data.get("cin_place") or "").strip()
-
-            mailing_address = (
-                request.data.get("mailing_address")
-                or email
-            ).strip()
-
-            # =========================
-            # Vérification des champs
-            # =========================
-            if not email or not password or not propr_name or not last_name:
-                return Response(
-                    {"message": "Veuillez remplir tous les champs obligatoires."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if not propr_cin:
-                return Response(
-                    {"message": "Le CIN est obligatoire."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if len(propr_cin) != 12:
-                return Response(
-                    {"message": "Le CIN doit contenir exactement 12 chiffres."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # =========================
-            # Vérification mot de passe
-            # =========================
-            password_error = validate_new_password(password)
-
-            if password_error:
-                return Response(
-                    {"message": password_error},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # =========================
-            # Vérification compte existant
-            # =========================
-            if Contribuable.objects.filter(
-                propr_cin=propr_cin
-            ).exists():
-                return Response(
-                    {"message": "Vous avez déjà un compte"},
-                    status=status.HTTP_409_CONFLICT
-                )
-
-            if Contribuable.objects.filter(
-                mailing_address__iexact=email
-            ).exists():
-                return Response(
-                    {"message": "Cette adresse e-mail est déjà utilisée."},
-                    status=status.HTTP_409_CONFLICT
-                )
-
-            # =========================
-            # Recherche opérateur
-            # =========================
-            operateur = find_operateur(propr_cin)
-
-            if operateur is None:
-                return Response(
-                    {
-                        "message":
-                        "Les informations ne correspondent pas à celles de la base. CIN"
-                    },
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            # =========================
-            # Vérification téléphone
-            # =========================
-            if not same_phone(
-                operateur.propr_contact,
-                propr_contact
-            ):
-                return Response(
-                    {
-                        "message":
-                        "Les informations ne correspondent pas à celles de la base. TEL"
-                    },
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            # =========================
-            # Vérification nom
-            # =========================
-            if not names_match(
-                propr_name,
-                operateur.propr_name
-            ):
-                return Response(
-                    {
-                        "message":
-                        "Les informations ne correspondent pas à celles de la base. NOM"
-                    },
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            if not names_match(
-                last_name,
-                operateur.last_name
-            ):
-                return Response(
-                    {
-                        "message":
-                        "Les informations ne correspondent pas à celles de la base. PRENOM"
-                    },
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            # =========================
-            # Génération PRENIF
-            # =========================
-            try:
-                prenif = GenererPRENIFetMdp(propr_cin)
-            except ValueError as e:
-                return Response(
-                    {"message": str(e)},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if Contribuable.objects.filter(
-                propr_prenif=prenif
-            ).exists():
-                return Response(
-                    {
-                        "message":
-                        "Impossible de générer un PRENIF, contactez le service d'aide."
-                    },
-                    status=status.HTTP_409_CONFLICT
-                )
-
-            # =========================
-            # Création du contribuable
-            # =========================
-            contribuable = Contribuable(
-                propr_name=propr_name,
-                last_name=last_name,
-                propr_cin=propr_cin,
-                propr_prenif=prenif,
-                propr_contact=propr_contact,
-                mailing_address=mailing_address,
-                birth_date=birth_date,
-                birth_place=birth_place or "Inconnu",
-                sexe=sexe,
-                sit_matrim=sit_matrim,
-                delivr_cin_date=delivr_cin_date,
-                cin_place=cin_place,
-                bank_acct_no="Aucun",
-            )
-
-            # Le modèle Contribuable se charge du hash
-            # du mot de passe dans save().
-            contribuable.password = password
-
-            contribuable.save()
-
-            # =========================
-            # Réponse
-            # =========================
+        if Contribuable.objects.filter(propr_prenif=prenif).exists():
+            logger.error("Collision de PRENIF lors d'une inscription")
             return Response(
-                {
-                    "message": "Inscription réussie",
-                    "user": {
-                        "email": contribuable.mailing_address,
-                        "propr_prenif": contribuable.propr_prenif,
-                        "propr_name": contribuable.propr_name,
-                        "last_name": contribuable.last_name,
-                    },
-                },
-                status=status.HTTP_201_CREATED
+                {"message": "Impossible de générer un PRENIF, contactez le service d'aide."},
+                status=status.HTTP_409_CONFLICT,
             )
 
-        except Exception as e:
-            logger.exception("Erreur lors de l'inscription")
+        # Ne pas écraser birth_place s'il a été fourni par le client
+        extra = {"propr_cin": cin, "propr_prenif": prenif, "bank_acct_no": "Aucun"}
+        if not serializer.validated_data.get("birth_place"):
+            extra["birth_place"] = "Inconnu"
+        user = serializer.save(**extra)
 
-            return Response(
-                {
-                    "message": "Une erreur est survenue lors de l'inscription.",
-                    "error": str(e),
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        # Pas de connexion automatique : le contribuable doit passer par
+        # la connexion en 2 étapes (mot de passe + code e-mail).
+        return Response({
+            "message": "Inscription réussie",
+            "user": {
+                "email": user.mailing_address,
+                "propr_prenif": user.propr_prenif,
+                "propr_name": operateur.propr_name,
+                "last_name": operateur.last_name,
+            },
+        }, status=status.HTTP_201_CREATED)
+
 
 # ==========================================================================
 # Mot de passe
@@ -626,7 +485,7 @@ class TransactionSearchView(APIView):
 
 
 class CivismeFiscaleList(generics.ListAPIView):
-    permission_classes = [IsContribuable]
+    # Accessible à tout utilisateur authentifié (permission par défaut)
     queryset = CivismeFiscale.objects.all()
     serializer_class = CivismeFiscaleSerializer
 

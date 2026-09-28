@@ -3,7 +3,9 @@ import { View, TextInput, StyleSheet, TouchableOpacity, Image, Modal, FlatList, 
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import BASE_URL from './config/config';
+
 const AdminCustomHeader = () => {
   const navigation = useNavigation();
   const [searchText, setSearchText] = useState('');
@@ -14,12 +16,20 @@ const AdminCustomHeader = () => {
 
   const fetchMessage = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/api/AdminMessages/`);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(`${BASE_URL}/api/AdminMessages/`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await response.json();
-  
+
+      if (!Array.isArray(data)) {
+        setNewMessages(false);
+        return;
+      }
+
       // Extract the 'questions' field from each item in the data
       const reponse = data.map(item => item.questions);
-  
+
       // Check if 'reponse' is not null or contains valid data
       if (reponse.some(question => question !== null && question !== undefined)) {
         setNewMessages(true);
@@ -29,53 +39,63 @@ const AdminCustomHeader = () => {
     } catch (error) {
     }
   };
-  
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (text = searchText) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/AdminSearch/?search=${searchText}`);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(`${BASE_URL}/api/AdminSearch/?search=${encodeURIComponent(text)}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
       const data = await response.json();
-      setTransactions(data);
-    } catch (error) {}
+      const list = Array.isArray(data) ? data : [];
+      setTransactions(list);
+      return list;
+    } catch (error) {
+      return [];
+    }
   };
-  
+
   // Use useFocusEffect to fetch data when the screen is focused
   useFocusEffect(
     React.useCallback(() => {
       fetchMessage(); // Fetch messages on focus
-      fetchTransactions()
+      fetchTransactions();
     }, [])
   );
 
-  // Automatically refresh transactions and messages periodically
+  // Automatically refresh messages periodically
   useEffect(() => {
     const intervalId = setInterval(() => {
       fetchMessage(); // Refresh messages every 30 seconds
-    }, 5000); // Refresh every 30 seconds
+    }, 30000);
 
     // Cleanup interval when the component is unmounted
     return () => clearInterval(intervalId);
   }, []);
 
   const handleSearch = async () => {
-    await fetchTransactions(); // Charge les données en fonction de searchText
-    const filtered = transactions.filter((transaction) => {
+    const list = await fetchTransactions(searchText); // Charge les données en fonction de searchText
+    const filtered = list.filter((transaction) => {
       return transaction.propr_prenif.toString().includes(searchText);
     });
-  
+
     setFilteredTransactions(filtered);
     setModalVisible(true);
     Keyboard.dismiss(); // Ferme le clavier
   };
 
-    // Sélectionner une transaction
-    const handleTransactionSelect = (item) => {
-      setModalVisible(false); 
-      setSearchText('');
-      navigation.navigate('AdminMessage', { selectedItem: item }); // Rediriger vers la page d'envoi de message
-    };
-  
-  
+  // Sélectionner une transaction
+  const handleTransactionSelect = (item) => {
+    setModalVisible(false);
+    setSearchText('');
+    navigation.navigate('AdminMessage', { selectedItem: item }); // Rediriger vers la page d'envoi de message
+  };
+
+  const photoUri = (photo) => {
+    if (!photo) return null;
+    return photo.startsWith('data:image') ? photo : `data:image/png;base64,${photo}`;
+  };
+
   return (
     <View style={styles.header}>
       <Image source={require('@/assets/images/LOGO_MEF.jpeg')} style={styles.logo} />
@@ -105,16 +125,17 @@ const AdminCustomHeader = () => {
                     style={styles.productBox}
                     onPress={() => handleTransactionSelect(item)} // Lors du clic, rediriger
                   >
-                  <Image 
-                  source={{ uri: item.photo.startsWith('data:image') ? item.photo : `data:image/png;base64,${item.photo}` }} 
-                  style={styles.photo}
-                  />
-                
-                  <View style={styles.transactionRow}>
-                    <Text>PRENIF: {item.propr_prenif}</Text>
-                    <Text>NOM: {item.propr_name}</Text>
-                    <Text>PRENOM: {item.last_name}</Text>
-                  </View>
+                    {photoUri(item.photo) ? (
+                      <Image source={{ uri: photoUri(item.photo) }} style={styles.photo} />
+                    ) : (
+                      <View style={styles.photo} />
+                    )}
+
+                    <View style={styles.transactionRow}>
+                      <Text>PRENIF: {item.propr_prenif}</Text>
+                      <Text>NOM: {item.propr_name}</Text>
+                      <Text>PRENOM: {item.last_name}</Text>
+                    </View>
                   </TouchableOpacity>
                 )}
                 keyExtractor={(item) => item.propr_prenif.toString()}
@@ -217,6 +238,7 @@ const styles = StyleSheet.create({
     borderRadius: 35,
     borderWidth: 1,
     borderColor: '#ddd',
+    backgroundColor: '#eee',
   },
 });
 

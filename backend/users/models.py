@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinLengthValidator, RegexValidator
 from django.contrib.auth.hashers import make_password
-
+from django.conf import settings
 
 class Message(models.Model):
     prenif = models.TextField()
@@ -277,14 +277,19 @@ class AuthToken(models.Model):
     class Meta:
         db_table = "auth_token_contribuable"
 
-
 class VerificationCode(models.Model):
-    """Code à 6 chiffres envoyé par e-mail (connexion ou mot de passe oublié)."""
+    """Code à 6 chiffres envoyé par e-mail (connexion ou mot de passe oublié).
+    Rattaché à un contribuable OU à un administrateur (compte Django)."""
 
     PURPOSES = [("login", "Connexion"), ("reset", "Mot de passe oublié")]
 
     contribuable = models.ForeignKey(
-        "Contribuable", on_delete=models.CASCADE, related_name="codes"
+        "Contribuable", null=True, blank=True,
+        on_delete=models.CASCADE, related_name="codes",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="verification_codes",
     )
     purpose = models.CharField(max_length=10, choices=PURPOSES)
     code_hash = models.CharField(max_length=128)

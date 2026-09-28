@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, TextInput, TouchableOpacity, Text, FlatList, StyleSheet, BackHandler, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as SecureStore from 'expo-secure-store';
 import BASE_URL from './config/config';
 import { router } from 'expo-router';
 
@@ -17,10 +18,12 @@ const AdminMessageScreen = () => {
 
   const fetchMessages = useCallback(async () => {
     try {
+      const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(`${API_URL}?prenif=${propr_prenif}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
       });
       const data = await response.json();
@@ -49,9 +52,13 @@ const AdminMessageScreen = () => {
       const newMessage = { reponse: message };
 
       try {
+        const token = await SecureStore.getItemAsync('auth_token');
         const response = await fetch(`${API_URL}?prenif=${propr_prenif}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
           body: JSON.stringify(newMessage),
         });
 
@@ -100,7 +107,7 @@ const AdminMessageScreen = () => {
   };
 
   useEffect(() => {
-    const interval = setInterval(fetchMessages, 5000);
+    const interval = setInterval(fetchMessages, 30000);
     return () => clearInterval(interval);
   }, [fetchMessages]);
 

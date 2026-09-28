@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { Link, Stack } from 'expo-router';
 import { useRouter, useFocusEffect } from 'expo-router';
-import BASE_URL from './config/config';
 import * as SecureStore from 'expo-secure-store';
+import BASE_URL from './config/config';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -24,13 +24,13 @@ const LoginScreen = () => {
   const [isPasswordVisible, setPasswordVisible] = useState(false);
   const [isLoadingLogin, setLoadingLogin] = useState(false);
   const [isLoadingVerification, setLoadingVerification] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const router = useRouter();
 
   const togglePasswordVisibility = () => {
     setPasswordVisible(!isPasswordVisible);
   };
 
-  // Gérer le bouton retour pour quitter l'application
   useEffect(() => {
     const backAction = () => {
       BackHandler.exitApp();
@@ -43,87 +43,92 @@ const LoginScreen = () => {
     };
   }, []);
 
-  // Réinitialiser les champs lorsque l'écran est focalisé
   useFocusEffect(
     React.useCallback(() => {
       setEmail('');
       setPassword('');
       setVerificationCode('');
+      setModalVisible(false);
       return () => {};
     }, [])
   );
 
-const handleLogin = async () => {
-  if (!email || !password) {
-    Alert.alert(
-      'Erreur',
-      'Veuillez remplir tous les champs.'
-    );
-    return;
-  }
-
-  setLoadingLogin(true);
-
-  try {
-    const response = await fetch(`${BASE_URL}/api/login/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email,
-        password,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      setModalVisible(true);
-    } else {
-      Alert.alert(
-        'Erreur',
-        data.error || 'Email ou mot de passe incorrect.'
-      );
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Erreur', 'Veuillez remplir tous les champs.');
+      return;
     }
-  } catch (error) {
-    console.error('Erreur login:', error);
 
-    Alert.alert(
-      'Erreur',
-      'Problème de connexion avec le serveur.'
-    );
-  } finally {
-    setLoadingLogin(false);
-  }
-};
+    setLoadingLogin(true);
+    try {
+      const response = await fetch(`${BASE_URL}/api/login/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        setModalVisible(true);
+      } else {
+        Alert.alert('Erreur', data.error || 'Email ou mot de passe incorrect.');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Problème de connexion avec le serveur.');
+    } finally {
+      setLoadingLogin(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setIsResending(true);
+    try {
+      const response = await fetch(`${BASE_URL}/api/send-code/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        Alert.alert('Code renvoyé', 'Un nouveau code vous a été envoyé par e-mail.');
+      } else {
+        Alert.alert('Erreur', data.error || 'Impossible de renvoyer le code.');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Problème de connexion avec le serveur.');
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   const confirmCode = async () => {
     if (!verificationCode) {
       Alert.alert('Erreur', 'Veuillez entrer le code de vérification.');
       return;
     }
-  
-    setLoadingVerification(true); // Démarre le chargement
+
+    setLoadingVerification(true);
     try {
       const response = await fetch(`${BASE_URL}/api/verify-code/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: verificationCode }),
       });
-  
-       const data = await response.json(); // Convertir la réponse en JSON
-  
+
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
         await SecureStore.setItemAsync('auth_token', data.token);
+        await SecureStore.setItemAsync('user_role', data.role);
+
         setModalVisible(false);
         setEmail('');
         setPassword('');
         setVerificationCode('');
-  
-        if (data.prenif === '0000000000') { // Utiliser data.prenif et non response.prenif
+
+        if (data.role === 'admin') {
           router.push('/AdminBarreView');
         } else {
           router.push('/drawer');
@@ -134,10 +139,9 @@ const handleLogin = async () => {
     } catch (error) {
       Alert.alert('Erreur', 'Problème de connexion avec le serveur.');
     } finally {
-      setLoadingVerification(false); // Arrête le chargement
+      setLoadingVerification(false);
     }
   };
-  
 
   return (
     <View style={styles.container}>
@@ -191,12 +195,20 @@ const handleLogin = async () => {
               onChangeText={setVerificationCode}
               value={verificationCode}
               placeholder="Code de vérification"
+              keyboardType="number-pad"
             />
             <TouchableOpacity onPress={confirmCode} style={styles.buttonConnexion} disabled={isLoadingVerification}>
               {isLoadingVerification ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.text}>Confirmer le code</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleResendCode} disabled={isResending}>
+              {isResending ? (
+                <ActivityIndicator color="#1379CD" />
+              ) : (
+                <Text style={styles.textLien}>Je n'ai rien reçu, renvoyer le code</Text>
               )}
             </TouchableOpacity>
             <TouchableOpacity
@@ -223,7 +235,6 @@ const handleLogin = async () => {
     </View>
   );
 };
-
 
 const styles = StyleSheet.create({
   container: {
@@ -266,6 +277,11 @@ const styles = StyleSheet.create({
   text: {
     color: 'white',
     textAlign: 'center',
+  },
+  textLien: {
+    color: '#1379CD',
+    textAlign: 'center',
+    marginTop: 5,
   },
   buttonInscrire: {
     textAlign: 'center',
@@ -322,10 +338,9 @@ const styles = StyleSheet.create({
     borderColor: '#1379CD',
     borderRadius: 5,
     marginRight: 10,
- 
-  justifyContent: 'center',
-  alignItems: 'center',
-},
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   unchecked: {
     width: 0,
     height: 0,
