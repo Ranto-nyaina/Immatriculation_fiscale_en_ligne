@@ -118,7 +118,7 @@ class Contribuable(models.Model):
         ]
     )
 
-    photo = models.CharField(max_length=200, null=True, blank=True)
+    photo = models.TextField(blank=True, null=True)
 
     def save(self, *args, **kwargs):
         if self.password:
@@ -146,7 +146,7 @@ class CivismeFiscale(models.Model):
     description = models.TextField()  # Description détaillée
     question = models.TextField()  # Question associée
     reponse = models.TextField()  # Réponse associée
-    quizz = models.JSONField()  # Quizz sous forme de données JSON
+    quizz = models.JSONField(null=True, blank=True)  # Quizz sous forme de données JSON
 
     class Meta:
         db_table = "civisme_fiscale"
@@ -252,7 +252,7 @@ class TransactionView(models.Model):
 
 class MessagesAdmin(models.Model):
     contribuable = models.IntegerField()
-    photo = models.CharField(max_length=200, null=True, blank=True)
+    photo = models.TextField(blank=True, null=True)
     propr_prenif = models.CharField(max_length=50)
     propr_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)

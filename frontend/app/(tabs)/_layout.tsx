@@ -1,27 +1,28 @@
-import { Tabs } from 'expo-router';
+import { Stack } from 'expo-router';
 import React from 'react';
 
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
+export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={({ route }) => ({
-        tabBarStyle: {
-          display: route.name === 'log_in' || route.name === 'sign_up'
-            || route.name === 'histogramme' || route.name === 'barreDeNav'  
-            || route.name === 'deconnexion' || route.name === 'accueil' || route.name === 'index'
-             || route.name === 'motDepasse' || route.name === 'drawer' || route.name === 'AdminBarreView'
-             || route.name === 'AdminMessage'
-           ? 'none' : 'flex',
-        },
-        headerShown: false, // Toujours masquer l'en-tête
-      })}
-    > 
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false }} initialRouteName="log_in">
+      <Stack.Screen name="accueil" />
+      <Stack.Screen name="AdminBarreView" />
+      <Stack.Screen name="AdminChat" />
+      <Stack.Screen name="AdminCustomHeader" />
+      <Stack.Screen name="AdminMessage" />
+      <Stack.Screen name="apropos" />
+      <Stack.Screen name="barreDeNav" />
+      <Stack.Screen name="BarreView" />
+      <Stack.Screen name="chat" />
+      <Stack.Screen name="CustomHeader" />
+      <Stack.Screen name="deconnexion" />
+      <Stack.Screen name="drawer" />
+      <Stack.Screen name="histogramme" />
+      <Stack.Screen name="historique" />
+      <Stack.Screen name="HomeScreen" />
+      <Stack.Screen name="log_in" />
+      <Stack.Screen name="motDepasse" />
+      <Stack.Screen name="parametre" />
+      <Stack.Screen name="sign_up" />
+    </Stack>
   );
 }

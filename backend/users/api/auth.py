@@ -92,9 +92,9 @@ class ContribuableTokenAuthentication(BaseAuthentication):
 
 class IsContribuable(BasePermission):
     """Réservé aux contribuables connectés."""
-
     def has_permission(self, request, view):
-        return isinstance(request.user, Contribuable)
+        user = request.user
+        return isinstance(user, Contribuable)
 
 
 class IsStaff(BasePermission):
@@ -102,8 +102,11 @@ class IsStaff(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        return bool(user and user.is_authenticated and getattr(user, "is_staff", False))
-
+        # Un contribuable n'est PAS un admin
+        if not user or isinstance(user, Contribuable):
+            return False
+        # C'est un User Django (admin) : on vérifie is_staff
+        return bool(getattr(user, "is_staff", False))
 
 # --- Limitation de débit --------------------------------------------------
 

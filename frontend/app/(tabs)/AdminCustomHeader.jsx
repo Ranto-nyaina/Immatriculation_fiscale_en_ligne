@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Image, Modal, FlatList, Text, Button, Keyboard, Alert } from 'react-native';
+import { View, TextInput, StyleSheet, TouchableOpacity, Image, Modal, FlatList, Text, Button, Keyboard } from 'react-native';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
@@ -18,8 +18,15 @@ const AdminCustomHeader = () => {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(`${BASE_URL}/api/AdminMessages/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      // 404 = aucun message, ce n'est pas une erreur
+      if (response.status === 404) {
+        setNewMessages(false);
+        return;
+      }
+
       const data = await response.json();
 
       if (!Array.isArray(data)) {
@@ -27,25 +34,25 @@ const AdminCustomHeader = () => {
         return;
       }
 
-      // Extract the 'questions' field from each item in the data
-      const reponse = data.map(item => item.questions);
+      const reponse = data.map((item) => item.questions);
 
-      // Check if 'reponse' is not null or contains valid data
-      if (reponse.some(question => question !== null && question !== undefined)) {
+      if (reponse.some((question) => question !== null && question !== undefined)) {
         setNewMessages(true);
       } else {
         setNewMessages(false);
       }
     } catch (error) {
+      // Silencieux
     }
   };
 
   const fetchTransactions = async (text = searchText) => {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
-      const response = await fetch(`${BASE_URL}/api/AdminSearch/?search=${encodeURIComponent(text)}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const response = await fetch(
+        `${BASE_URL}/api/AdminSearch/?search=${encodeURIComponent(text)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       const data = await response.json();
       const list = Array.isArray(data) ? data : [];
       setTransactions(list);
@@ -55,40 +62,35 @@ const AdminCustomHeader = () => {
     }
   };
 
-  // Use useFocusEffect to fetch data when the screen is focused
   useFocusEffect(
     React.useCallback(() => {
-      fetchMessage(); // Fetch messages on focus
+      fetchMessage();
       fetchTransactions();
     }, [])
   );
 
-  // Automatically refresh messages periodically
   useEffect(() => {
     const intervalId = setInterval(() => {
-      fetchMessage(); // Refresh messages every 30 seconds
+      fetchMessage();
     }, 30000);
-
-    // Cleanup interval when the component is unmounted
     return () => clearInterval(intervalId);
   }, []);
 
   const handleSearch = async () => {
-    const list = await fetchTransactions(searchText); // Charge les données en fonction de searchText
+    const list = await fetchTransactions(searchText);
     const filtered = list.filter((transaction) => {
       return transaction.propr_prenif.toString().includes(searchText);
     });
 
     setFilteredTransactions(filtered);
     setModalVisible(true);
-    Keyboard.dismiss(); // Ferme le clavier
+    Keyboard.dismiss();
   };
 
-  // Sélectionner une transaction
   const handleTransactionSelect = (item) => {
     setModalVisible(false);
     setSearchText('');
-    navigation.navigate('AdminMessage', { selectedItem: item }); // Rediriger vers la page d'envoi de message
+    navigation.navigate('SendMessage', { selectedItem: item });
   };
 
   const photoUri = (photo) => {
@@ -113,7 +115,6 @@ const AdminCustomHeader = () => {
         </View>
       </TouchableOpacity>
 
-      {/* Modal to display filtered transactions */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -123,7 +124,7 @@ const AdminCustomHeader = () => {
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={styles.productBox}
-                    onPress={() => handleTransactionSelect(item)} // Lors du clic, rediriger
+                    onPress={() => handleTransactionSelect(item)}
                   >
                     {photoUri(item.photo) ? (
                       <Image source={{ uri: photoUri(item.photo) }} style={styles.photo} />

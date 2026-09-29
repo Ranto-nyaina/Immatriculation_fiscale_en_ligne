@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Image, Modal, FlatList, Text, Button, Keyboard, Alert } from 'react-native';
+import { View, TextInput, StyleSheet, TouchableOpacity, Image, Modal, FlatList, Text, Button, Keyboard } from 'react-native';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
@@ -17,74 +17,71 @@ const CustomHeader = () => {
   const fetchMessage = async () => {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
-      const response = await fetch(`${BASE_URL}/api/chat/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      const response = await fetch(`${BASE_URL}/api/AdminMessages/`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      // 404 = aucun message, pas une erreur
+      if (response.status === 404) {
+        setNewMessages(false);
+        return;
+      }
+
       const data = await response.json();
 
-      if (data.length > 0) {
-        // Trouver l'entrée avec le plus grand ID
-        const lastMessage = data.reduce((max, current) =>
-          current.id > max.id ? current : max
-        );
-
-        const reponse = lastMessage.reponse; // Texte de la réponse
-
-        // Vérifier si une réponse existe
-        if (reponse) {
-          setNewMessages(true);
-        } else {
-          setNewMessages(false);
-        }
+      if (!Array.isArray(data) || data.length === 0) {
+        setNewMessages(false);
+        return;
       }
+
+      // On regarde s'il y a au moins une question non répondue
+      const hasQuestion = data.some(
+        (item) => item.questions !== null && item.questions !== undefined
+      );
+      setNewMessages(hasQuestion);
     } catch (error) {
+      // Silencieux
     }
   };
 
-  // Fetch all transactions
   const fetchTransactions = async () => {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(`${BASE_URL}/api/transactions/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      setTransactions(data);
+      setTransactions(Array.isArray(data) ? data : []);
     } catch (error) {
+      // Silencieux
     }
   };
 
-  // Use useFocusEffect to fetch data when the screen is focused
   useFocusEffect(
     React.useCallback(() => {
-      fetchMessage(); // Fetch messages on focus
-      fetchTransactions()
+      fetchMessage();
+      fetchTransactions();
     }, [])
   );
 
-  // Automatically refresh messages periodically
   useEffect(() => {
     const intervalId = setInterval(() => {
-      fetchMessage(); // Refresh messages every 30 seconds
+      fetchMessage();
     }, 30000);
-
-    // Cleanup interval when the component is unmounted
     return () => clearInterval(intervalId);
   }, []);
 
-  // Handle search logic
   const handleSearch = () => {
     const filtered = transactions.filter((transaction) => {
-      const quitMatch = transaction.n_quit.toString().includes(searchText);
-      const dateMatch = transaction.date_paiement.includes(searchText);
-      const montantMatch = transaction.montant.toString().includes(searchText);
-
+      const quitMatch = transaction.n_quit?.toString().includes(searchText);
+      const dateMatch = transaction.date_paiement?.includes(searchText);
+      const montantMatch = transaction.montant?.toString().includes(searchText);
       return quitMatch || dateMatch || montantMatch;
     });
 
     setFilteredTransactions(filtered);
     setModalVisible(true);
-    Keyboard.dismiss(); // Close the keyboard
+    Keyboard.dismiss();
   };
 
   return (
@@ -104,7 +101,6 @@ const CustomHeader = () => {
         </View>
       </TouchableOpacity>
 
-      {/* Modal to display filtered transactions */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>

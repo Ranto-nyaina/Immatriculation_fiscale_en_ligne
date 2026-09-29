@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, TextInput, TouchableOpacity, Text, FlatList, StyleSheet, BackHandler, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  FlatList,
+  StyleSheet,
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+} from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
@@ -17,18 +28,31 @@ const AdminMessageScreen = () => {
   const propr_prenif = selectedItem?.propr_prenif;
 
   const fetchMessages = useCallback(async () => {
+    if (!propr_prenif) {
+      setMessages([]);
+      return;
+    }
+
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(`${API_URL}?prenif=${propr_prenif}`, {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
       });
+
+      if (!response.ok) {
+        setMessages([]);
+        return;
+      }
+
       const data = await response.json();
-      setMessages(data);
-    } catch (error) {}
+      setMessages(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setMessages([]);
+    }
   }, [propr_prenif]);
 
   useEffect(() => {
@@ -48,28 +72,30 @@ const AdminMessageScreen = () => {
   );
 
   const sendMessage = async () => {
-    if (message.trim()) {
-      const newMessage = { reponse: message };
+    if (!message.trim()) return;
 
-      try {
-        const token = await SecureStore.getItemAsync('auth_token');
-        const response = await fetch(`${API_URL}?prenif=${propr_prenif}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify(newMessage),
-        });
+    const newMessage = { reponse: message.trim() };
 
-        if (response.ok) {
-          const savedMessage = await response.json();
-          setMessages([savedMessage, ...messages]);
-          setMessage('');
-          fetchMessages();
-        } else {}
-      } catch (error) {
+    try {
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(`${API_URL}?prenif=${propr_prenif}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newMessage),
+      });
+
+      if (response.ok) {
+        const savedMessage = await response.json();
+        setMessages((prev) => [savedMessage, ...prev]);
+        setMessage('');
+        Keyboard.dismiss();
+        fetchMessages();
       }
+    } catch (error) {
+      // Silencieux
     }
   };
 
@@ -85,7 +111,7 @@ const AdminMessageScreen = () => {
   };
 
   const renderMessage = ({ item }) => {
-    if (!item.question && !item.reponse) return null;
+    if (!item || (!item.question && !item.reponse)) return null;
 
     return (
       <View style={styles.messageWrapper}>
@@ -112,18 +138,23 @@ const AdminMessageScreen = () => {
   }, [fetchMessages]);
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <FlatList
         data={messages}
         renderItem={renderMessage}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) =>
+          item?.id ? item.id.toString() : `msg-${index}`
+        }
         inverted
         style={styles.chatList}
+        contentContainerStyle={styles.chatListContent}
+        keyboardShouldPersistTaps="handled"
       />
+
       <View style={styles.inputContainer}>
         <TextInput
           value={message}
@@ -138,7 +169,11 @@ const AdminMessageScreen = () => {
           </TouchableOpacity>
         )}
       </View>
-      <TouchableOpacity onPress={() => router.push('/AdminBarreView')} style={styles.buttonRetour}>
+
+      <TouchableOpacity
+        onPress={() => router.push('/AdminBarreView')}
+        style={styles.buttonRetour}
+      >
         <Text style={styles.buttonRetourText}>Retour</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
@@ -151,6 +186,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   chatList: {
+    flex: 1,
+  },
+  chatListContent: {
     padding: 10,
   },
   messageWrapper: {

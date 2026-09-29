@@ -129,9 +129,9 @@ const LoginScreen = () => {
         setVerificationCode('');
 
         if (data.role === 'admin') {
-          router.push('/AdminBarreView');
+          router.replace('/AdminBarreView');   
         } else {
-          router.push('/drawer');
+          router.replace('/drawer');            
         }
       } else {
         Alert.alert('Erreur', data.error || 'Code de vérification incorrect.');
@@ -204,13 +204,6 @@ const LoginScreen = () => {
                 <Text style={styles.text}>Confirmer le code</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleResendCode} disabled={isResending}>
-              {isResending ? (
-                <ActivityIndicator color="#1379CD" />
-              ) : (
-                <Text style={styles.textLien}>Je n'ai rien reçu, renvoyer le code</Text>
-              )}
-            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => {
                 setModalVisible(false);
@@ -221,6 +214,13 @@ const LoginScreen = () => {
               style={styles.buttonFermer}
             >
               <Text style={styles.text}>Fermer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleResendCode} disabled={isResending}>
+              {isResending ? (
+                <ActivityIndicator color="#1379CD" />
+              ) : (
+                <Text style={styles.textLien}>Je n'ai rien reçu, renvoyer le code</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>

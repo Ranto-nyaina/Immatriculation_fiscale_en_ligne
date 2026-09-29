@@ -16,7 +16,7 @@ from rest_framework.decorators import (
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import ReadOnlyModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 
 from ..models import (
     AuthToken,
@@ -53,8 +53,8 @@ from .serializers import (
 
 logger = logging.getLogger(__name__)
 
-MAX_NAME_DISTANCE = 2          # tolérance sur les noms (avant : 3 pour le prénom, 10 pour le nom)
-MAX_PHOTO_CHARS = 2_000_000    # taille maximale d'une photo en base64
+MAX_NAME_DISTANCE = 2
+MAX_PHOTO_CHARS = 2_000_000
 
 
 # ==========================================================================
@@ -85,12 +85,10 @@ def names_match(given, official):
 
 
 def normalize_cin(value):
-    """Garde uniquement les chiffres : '101 012 345 678' → '101012345678'."""
     return re.sub(r"\D", "", str(value or ""))
 
 
 def normalize_phone(value):
-    """Chiffres uniquement ; '+261 34 12 345 67' et '034 12 345 67' deviennent identiques."""
     digits = re.sub(r"\D", "", str(value or ""))
     if digits.startswith("261") and len(digits) == 12:
         digits = "0" + digits[3:]
@@ -103,7 +101,6 @@ def same_phone(a, b):
 
 
 def find_operateur(cin):
-    """Cherche l'opérateur par CIN, même si la table le stocke avec des espaces ou des tirets."""
     cin = normalize_cin(cin)
     if not cin:
         return None
@@ -116,12 +113,9 @@ def find_operateur(cin):
 
 
 def GenererPRENIFetMdp(cin):
-    # Le CIN doit contenir exactement 12 chiffres
     if len(cin) != 12 or not cin.isdigit():
         raise ValueError("CIN invalide : 12 chiffres attendus.")
 
-    # PRENIF : les 9 derniers chiffres du CIN, précédés de la somme (réduite à 1 chiffre)
-    # des 3 premiers de ces 9 chiffres
     derniere_partie_cin = cin[-9:]
     somme_trois_premiers = sum(int(digit) for digit in derniere_partie_cin[:3])
 
@@ -132,8 +126,6 @@ def GenererPRENIFetMdp(cin):
 
 
 def validate_new_password(raw):
-    """Applique les validateurs du modèle (longueur, lettre + chiffre + spécial).
-    Retourne un message d'erreur, ou None si le mot de passe est valide."""
     try:
         Contribuable._meta.get_field("password").run_validators(raw)
     except DjangoValidationError as e:
@@ -142,7 +134,7 @@ def validate_new_password(raw):
 
 
 # ==========================================================================
-# Authentification (connexion en 2 étapes : mot de passe puis code e-mail)
+# Authentification
 # ==========================================================================
 
 @api_view(["POST"])
@@ -150,13 +142,10 @@ def validate_new_password(raw):
 @permission_classes([AllowAny])
 @throttle_classes([AuthRateThrottle])
 def login_view(request):
-    """Étape 1 : vérifie e-mail + mot de passe, puis envoie un code par e-mail."""
     email = (request.data.get("email") or "").strip()
     password = request.data.get("password") or ""
 
-    # Contribuable ou administrateur : même écran, même contrôle
     account = find_account(email)
-    # Même réponse si l'e-mail est inconnu ou le mot de passe faux
     if account is None or not password_ok(account, password):
         return Response({"error": "Identifiants incorrects"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -171,7 +160,6 @@ def login_view(request):
     return Response({"message": "Code de vérification envoyé par e-mail."})
 
 
-# Renvoi du code : même contrôle (e-mail + mot de passe) que la connexion
 send_verification_email = login_view
 
 
@@ -180,7 +168,6 @@ send_verification_email = login_view
 @permission_classes([AllowAny])
 @throttle_classes([AuthRateThrottle])
 def verify_code(request):
-    """Étape 2 : vérifie le code et retourne le token de session."""
     email = (request.data.get("email") or "").strip()
     code = str(request.data.get("code") or "").strip()
 
@@ -240,7 +227,6 @@ class RegisterContribuable(APIView):
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if not serializer.is_valid():
-            # « message » : texte prêt à afficher ; « errors » : détail par champ
             first = next(iter(serializer.errors.values()))
             message = str(first[0]) if isinstance(first, list) and first else "Données invalides."
             return Response(
@@ -253,8 +239,6 @@ class RegisterContribuable(APIView):
         if Contribuable.objects.filter(propr_cin=cin).exists():
             return Response({"message": "Vous avez déjà un compte"}, status=status.HTTP_409_CONFLICT)
 
-        # Un seul message pour tous les échecs de vérification d'identité
-        # (évite de révéler quel élément est faux)
         def mismatch():
             return Response(
                 {"message": "Les informations ne correspondent pas à celles de la base."},
@@ -280,14 +264,11 @@ class RegisterContribuable(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
-        # Ne pas écraser birth_place s'il a été fourni par le client
         extra = {"propr_cin": cin, "propr_prenif": prenif, "bank_acct_no": "Aucun"}
         if not serializer.validated_data.get("birth_place"):
             extra["birth_place"] = "Inconnu"
         user = serializer.save(**extra)
 
-        # Pas de connexion automatique : le contribuable doit passer par
-        # la connexion en 2 étapes (mot de passe + code e-mail).
         return Response({
             "message": "Inscription réussie",
             "user": {
@@ -317,9 +298,8 @@ def change_password(request):
     if error:
         return Response({"message": error}, status=status.HTTP_400_BAD_REQUEST)
 
-    contribuable.password = new_password   # haché par Contribuable.save()
+    contribuable.password = new_password
     contribuable.save()
-    # Déconnecte les autres appareils
     contribuable.tokens.exclude(pk=request.auth.pk).delete()
     return Response({"message": "Mot de passe modifié avec succès!"}, status=status.HTTP_200_OK)
 
@@ -329,7 +309,6 @@ def change_password(request):
 @permission_classes([AllowAny])
 @throttle_classes([AuthRateThrottle])
 def verify_user(request):
-    """Mot de passe oublié, étape 1 : vérifie CIN + e-mail + numéro, envoie un code."""
     cin = normalize_cin(request.data.get("cin"))
     email = (request.data.get("email") or "").strip()
     numero = request.data.get("numero")
@@ -357,8 +336,6 @@ def verify_user(request):
 @permission_classes([AllowAny])
 @throttle_classes([AuthRateThrottle])
 def update_password(request):
-    """Mot de passe oublié, étape 2 : le code reçu par e-mail est OBLIGATOIRE.
-    (Avant : le CIN seul suffisait pour changer le mot de passe de n'importe qui.)"""
     cin = normalize_cin(request.data.get("cin"))
     code = str(request.data.get("code") or "").strip()
     new_password = request.data.get("newPassword") or ""
@@ -376,7 +353,7 @@ def update_password(request):
 
     user.password = new_password
     user.save()
-    user.tokens.all().delete()   # déconnecte tous les appareils
+    user.tokens.all().delete()
     return Response({"message": "Mot de passe mis à jour avec succès."})
 
 
@@ -407,7 +384,7 @@ def update_user_info(request):
     last_name = data.get("last_name")
     mailing_address = data.get("mailing_address")
     phone_number = data.get("phone_number")
-    photo = data.get("photo")  # base64
+    photo = data.get("photo")
 
     if not any([propr_name, last_name, phone_number, mailing_address, photo]):
         return Response({"error": "Au moins un champ doit être modifié."}, status=status.HTTP_400_BAD_REQUEST)
@@ -458,9 +435,6 @@ class HistogrammeAPIView(APIView):
 
 
 class CentralRecetteViewSet(ReadOnlyModelViewSet):
-    """Lecture seule : un contribuable ne doit pas pouvoir créer,
-    modifier ou supprimer des transactions."""
-
     serializer_class = CentralRecetteSerializer
     permission_classes = [IsContribuable]
 
@@ -484,11 +458,25 @@ class TransactionSearchView(APIView):
         return Response(TransactionSerializer(transactions, many=True).data, status=status.HTTP_200_OK)
 
 
-class CivismeFiscaleList(generics.ListAPIView):
-    # Accessible à tout utilisateur authentifié (permission par défaut)
+# ==========================================================================
+# Civisme fiscale (CRUD complet)
+# ==========================================================================
+
+class CivismeFiscaleViewSet(ModelViewSet):
+    """CRUD complet : liste, détail, création, modification, suppression."""
+
     queryset = CivismeFiscale.objects.all()
     serializer_class = CivismeFiscaleSerializer
 
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsStaff()]
+        return [AllowAny()]
+
+
+# ==========================================================================
+# Chat contribuable
+# ==========================================================================
 
 class ChatView(APIView):
     permission_classes = [IsContribuable]
@@ -500,14 +488,13 @@ class ChatView(APIView):
     def post(self, request):
         serializer = MessageCreateSerializer(data=request.data)
         if serializer.is_valid():
-            # Le PRENIF vient du token, jamais du client
             serializer.save(prenif=request.user.propr_prenif)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ==========================================================================
-# Administrateurs (compte Django is_staff + en-tête « Authorization: Token ... »)
+# Administrateurs
 # ==========================================================================
 
 class MessagesAdminList(APIView):
@@ -515,9 +502,6 @@ class MessagesAdminList(APIView):
 
     def get(self, request, *args, **kwargs):
         messages = MessagesAdmin.objects.all()
-        if not messages.exists():
-            return Response({"error": "Aucun message trouvé"}, status=status.HTTP_404_NOT_FOUND)
-
         user_data = [{
             "propr_name": m.propr_name,
             "last_name": m.last_name,
@@ -564,5 +548,4 @@ class AdminSearchView(APIView):
             contribuables = Contribuable.objects.filter(propr_prenif__icontains=search_text)
         else:
             contribuables = Contribuable.objects.all()
-        # ContribuableSerializer n'expose plus le mot de passe
         return Response(ContribuableSerializer(contribuables, many=True).data, status=status.HTTP_200_OK)

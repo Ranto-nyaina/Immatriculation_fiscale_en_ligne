@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, TextInput, TouchableOpacity, Text, FlatList, StyleSheet, Alert, BackHandler, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  FlatList,
+  StyleSheet,
+  Alert,
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+} from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import BASE_URL from './config/config';
@@ -16,12 +28,18 @@ const ChatScreen = () => {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(API_URL, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (!response.ok) {
+        setMessages([]);
+        return;
+      }
+
       const data = await response.json();
-      setMessages(data);
+      setMessages(Array.isArray(data) ? data : []);
     } catch (error) {
-      Alert.alert('Erreur', "Impossible de charger les messages.");
+      setMessages([]);
     }
   }, []);
 
@@ -42,31 +60,32 @@ const ChatScreen = () => {
   );
 
   const sendMessage = async () => {
-    if (message.trim()) {
-      const newMessage = { question: message };
+    if (!message.trim()) return;
 
-      try {
-        const token = await SecureStore.getItemAsync('auth_token');
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify(newMessage),
-        });
+    const newMessage = { question: message.trim() };
 
-        if (response.ok) {
-          const savedMessage = await response.json();
-          setMessages([savedMessage, ...messages]);
-          setMessage('');
-          fetchMessages();
-        } else {
-          Alert.alert('Erreur', "Impossible d'envoyer le message.");
-        }
-      } catch (error) {
-        Alert.alert('Erreur', "Erreur réseau lors de l'envoi.");
+    try {
+      const token = await SecureStore.getItemAsync('auth_token');
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newMessage),
+      });
+
+      if (response.ok) {
+        const savedMessage = await response.json();
+        setMessages((prev) => [savedMessage, ...prev]);
+        setMessage('');
+        Keyboard.dismiss();
+        fetchMessages();
+      } else {
+        Alert.alert('Erreur', "Impossible d'envoyer le message.");
       }
+    } catch (error) {
+      Alert.alert('Erreur', "Erreur réseau lors de l'envoi.");
     }
   };
 
@@ -82,7 +101,7 @@ const ChatScreen = () => {
   };
 
   const renderMessage = ({ item }) => {
-    if (!item.question && !item.reponse) return null;
+    if (!item || (!item.question && !item.reponse)) return null;
 
     return (
       <View style={styles.messageWrapper}>
@@ -109,18 +128,23 @@ const ChatScreen = () => {
   }, [fetchMessages]);
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <KeyboardAvoidingView
       style={styles.container}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <FlatList
         data={messages}
         renderItem={renderMessage}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) =>
+          item?.id ? item.id.toString() : `msg-${index}`
+        }
         inverted
         style={styles.chatList}
+        contentContainerStyle={styles.chatListContent}
+        keyboardShouldPersistTaps="handled"
       />
+
       <View style={styles.inputContainer}>
         <TextInput
           value={message}
@@ -145,6 +169,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   chatList: {
+    flex: 1,
+  },
+  chatListContent: {
     padding: 10,
   },
   messageWrapper: {

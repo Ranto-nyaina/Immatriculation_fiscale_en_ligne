@@ -1,8 +1,8 @@
+-- créées par Django).
 -- =========================================================================
 -- Vues SQL utilisées par l'application (modèles Django en managed = False)
 --
 -- À exécuter APRÈS `python manage.py migrate` (les vues lisent les tables
--- créées par Django).
 --
 --   psql -U postgres -d nif -f sql/vues.sql
 --   (ou : pgAdmin 4 → Query Tool → coller le contenu → Exécuter)
@@ -18,10 +18,11 @@
 
 -- -------------------------------------------------------------------------
 -- 1) Messages avec l'identité du contribuable (écran administrateur)
+--    Une seule ligne par contribuable : le message le plus récent.
 --    Modèle : MessagesAdmin
 -- -------------------------------------------------------------------------
 CREATE OR REPLACE VIEW vue_messages AS
-SELECT
+SELECT DISTINCT ON (c.id_contribuable)
     m.id                   AS id,
     c.id_contribuable      AS contribuable,
     c.photo                AS photo,
@@ -33,8 +34,8 @@ SELECT
     m.date_reponse::date   AS date_reponse,
     m.date_question::date  AS date_question
 FROM messages m
-JOIN contribuable c ON c.propr_prenif = m.prenif;
-
+JOIN contribuable c ON c.propr_prenif = m.prenif
+ORDER BY c.id_contribuable, m.date_question DESC;
 
 -- -------------------------------------------------------------------------
 -- 2) Total versé par contribuable et par année (histogramme du tableau de bord)

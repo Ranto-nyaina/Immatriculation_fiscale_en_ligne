@@ -91,7 +91,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = (
             'propr_cin', 'propr_name', 'last_name',
             'propr_contact', 'mailing_address', 'password',
-            'sex', 'birth_date', 'birth_place',
+            'sexe', 'birth_date', 'birth_place',
             'sit_matrim', 'delivr_cin_date', 'cin_place',
         )
         extra_kwargs = {'password': {'write_only': True}}

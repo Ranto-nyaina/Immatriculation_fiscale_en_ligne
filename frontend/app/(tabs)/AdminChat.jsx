@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   BackHandler,
   Image,
 } from 'react-native';
@@ -14,7 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import BASE_URL from './config/config';
 
-export default function AdminchatScreen() {
+export default function AdminChatScreen() {
   const [data, setData] = useState([]);
   const navigation = useNavigation();
 
@@ -46,19 +45,29 @@ export default function AdminchatScreen() {
     try {
       const token = await SecureStore.getItemAsync('auth_token');
       const response = await fetch(`${BASE_URL}/api/AdminMessages/`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) {
-        throw new Error('Erreur lors de la récupération des données');
+
+      // 404 = aucun message → liste vide, pas une erreur
+      if (response.status === 404) {
+        setData([]);
+        return;
       }
-      const data = await response.json();
-      setData(data);
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
+      }
+
+      const json = await response.json();
+      setData(Array.isArray(json) ? json : []);
     } catch (error) {
+      // Silencieux
     }
   };
 
   const handleTransactionSelect = (item) => {
-    navigation.navigate('AdminMessage', { selectedItem: item }); 
+    // 'SendMessage' est le nom défini dans StackNav (BarreAdminView.jsx)
+    navigation.navigate('SendMessage', { selectedItem: item });
   };
 
   return (
@@ -75,9 +84,13 @@ export default function AdminchatScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.productBox}
-            onPress={() => handleTransactionSelect(item)} // Lors du clic, rediriger
+            onPress={() => handleTransactionSelect(item)}
           >
-            <Image source={{ uri: item.photo }} style={styles.photo} />
+            {item.photo ? (
+              <Image source={{ uri: item.photo }} style={styles.photo} />
+            ) : (
+              <View style={styles.photo} />
+            )}
             <View style={styles.row}>
               <Text style={styles.cell}>{item.propr_prenif}</Text>
               <Text
@@ -85,13 +98,11 @@ export default function AdminchatScreen() {
                   styles.cell,
                   item.questions && {
                     fontWeight: 'bold',
-                    color: '#007AFF', // Highlight the text
+                    color: '#007AFF',
                   },
                 ]}
               >
-                {item.questions
-                  ? item.questions
-                  : item.reponses}
+                {item.questions ? item.questions : item.reponses}
               </Text>
             </View>
           </TouchableOpacity>
@@ -146,5 +157,6 @@ const styles = StyleSheet.create({
     borderRadius: 35,
     borderWidth: 1,
     borderColor: '#ddd',
+    backgroundColor: '#eee',
   },
 });
