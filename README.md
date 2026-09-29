@@ -29,13 +29,13 @@ Les cas d'utilisation sont classés par ordre de priorité :
 
 | Priorité | Fonctionnalité | Acteur(s) | Description |
 |---|---|---|---|
-| 1 | S'authentifier | Contribuable | Connexion par e-mail et mot de passe, puis code de vérification à 6 chiffres envoyé par e-mail |
+| 1 | S'authentifier | Contribuable, administrateur | Connexion avec le même écran par e-mail et mot de passe, puis code de vérification à 6 chiffres envoyé par e-mail ; le serveur détermine le rôle |
 | 2 | S'inscrire | Contribuable | Inscription en ligne, avec vérification de l'identité (CIN, contact, nom) et obtention d'un numéro PRENIF |
 | 3 | Visualiser ses transactions | Contribuable | Historique des transactions avec recherche, et tableau de bord avec histogramme annuel |
 | 4 | Modifier ses informations | Contribuable | Modification du profil, de la photo et du mot de passe depuis la page Paramètres |
 | 5 | Envoyer un message | Contribuable, administrateur | Questions et demandes d'aide au service d'aide |
 | 6 | Réinitialiser son mot de passe | Contribuable | Vérification de l'identité (CIN, e-mail, numéro), puis code envoyé par e-mail |
-| 7 | Gérer les contribuables et les messages | Administrateur | Recherche d'un contribuable par PRENIF, consultation des messages et réponse |
+| 7 | Gérer les contribuables et les messages | Administrateur | Recherche d'un contribuable par PRENIF, consultation des messages et réponse depuis l'espace administrateur |
 | 8 | Civisme fiscal | Contribuable | Consultation de contenus éducatifs (description, questions/réponses, quiz) |
 
 > **PRENIF :** numéro unique attribué à chaque contribuable pour l'identification fiscale.
@@ -89,7 +89,7 @@ L'application suit une **architecture 3-tiers** et communique par une **API REST
 | Application mobile | React Native (testée avec Expo Go) | Flutter |
 | Backend | Python + Django + Django REST Framework | Flask, FastAPI |
 | Base de données | PostgreSQL (administrée avec pgAdmin 4) | MySQL |
-| Authentification | Token avec expiration (contribuables) ; DRF `TokenAuthentication` (administrateurs) | — |
+| Authentification | Authentification commune par `Bearer <token>`, avec code e-mail et permissions par rôle | — |
 | E-mail | SMTP Gmail, pour le code de vérification | — |
 | Méthode de conception | UP (Processus Unifié) | Merise |
 | Modélisation | UML, avec Visual Paradigm | — |
@@ -152,7 +152,10 @@ apk-prenif/
 | `parametre.jsx` | profil, photo et mot de passe |
 | `deconnexion.jsx` | déconnexion |
 | `apropos.jsx` | à propos |
-| `Admin*.jsx` | écrans administrateur (messages, chat) |
+| `AdminBarreView.jsx` | barre/navigation de l'espace administrateur |
+| `AdminCustomHeader.jsx` | en-tête personnalisé administrateur |
+| `AdminChat.jsx` | chat administrateur |
+| `AdminMessage.jsx` | gestion des messages administrateur |
 
 ---
 
@@ -176,6 +179,7 @@ Tables principales de la base :
 - `contribuable`, `operateur`, `messages` ;
 - `central_recette` (transactions issues des logiciels de la DGI), `paiement`, `mode_paiement`, `num_impot`, `logiciel` ;
 - `auth_token_contribuable` et `verification_code` (authentification) ;
+- la relation `VerificationCode.user` permet d'associer le code à l'utilisateur Django concerné ; le champ `contribuable` est nullable pour prendre en charge les comptes administrateurs.
 - un découpage territorial (pays, région, ville, localité, wereda, fokontany).
 
 Trois **vues SQL** alimentent l'historique des transactions, le tableau de bord et les messages : `vue_somme_par_contribuable_par_annee`, `vue_detail_transactions_par_quit_et_contribuable` et `vue_messages`. Les modèles Django correspondants sont en `managed = False` : **les migrations ne créent pas ces vues**, elles doivent être créées avec `backend/sql/vues.sql` (voir Installation).
@@ -184,9 +188,10 @@ Trois **vues SQL** alimentent l'historique des transactions, le tableau de bord 
 
 ## 🔒 Sécurité
 
-- **Connexion en deux étapes :** mot de passe, puis code à 6 chiffres envoyé par e-mail (valable 10 minutes, 5 essais maximum, usage unique, seul un hash est conservé).
-- **Tokens à durée limitée :** 7 jours pour les contribuables, révoqués au changement ou à la réinitialisation du mot de passe.
-- **Permissions par rôle :** chaque route est réservée aux contribuables ou aux administrateurs ; un contribuable ne peut lire que ses propres données (filtrage par l'utilisateur authentifié, jamais par un identifiant envoyé par le client).
+- **Connexion commune en deux étapes :** contribuable et administrateur utilisent le même écran de connexion : e-mail, mot de passe, puis code à 6 chiffres envoyé par e-mail (valable 10 minutes, 5 essais maximum, usage unique, seul un hash est conservé).
+- **Un seul schéma d'authentification :** toutes les requêtes authentifiées utilisent `Authorization: Bearer <token>`. L'ancien schéma `Token` et la route `admin-login/` sont supprimés.
+- **Durée des tokens :** 7 jours pour un contribuable et 12 heures pour un administrateur. Un seul token administrateur est actif à la fois.
+- **Permissions par rôle :** le serveur renvoie le rôle (`contribuable` ou `admin`) après authentification et l'application ouvre l'espace correspondant. Un contribuable qui appelle une route administrateur reçoit `403`, et inversement.
 - **Mots de passe :** hachés par Django (PBKDF2), avec règle de complexité (lettre, chiffre, caractère spécial) ; jamais renvoyés par l'API.
 - **Routes publiques limitées :** inscription, connexion, vérification du code et réinitialisation du mot de passe sont limitées à 10 requêtes par minute.
 - **Inscription contrôlée :** le CIN, le contact et le nom doivent correspondre à un opérateur enregistré (tolérance de 2 caractères sur les noms).
@@ -239,7 +244,15 @@ Pour générer une clé secrète :
 python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"
 ```
 
-Crée une base PostgreSQL **vide** (nommée `nif` par défaut), puis :
+Crée une base PostgreSQL **vide** (nommée `nif` par défaut), puis génère et vérifie la migration liée à l'authentification :
+
+```bash
+python manage.py makemigrations users
+```
+
+Ouvre la migration avant de l'appliquer. Elle doit notamment contenir un `AlterField` sur `contribuable` (désormais nullable) et un `AddField` pour `user`.
+
+Puis applique les migrations :
 
 ```bash
 python manage.py migrate
@@ -253,17 +266,24 @@ python manage.py shell -c "from django.db import connection; connection.cursor()
 
 (Équivalent avec `psql` : `psql -U postgres -d nif -f sql/vues.sql`.) Ces vues ont été reconstruites à partir des modèles Django, car les définitions d'origine ont été perdues : la logique retenue est décrite dans les commentaires du script.
 
-Crée un compte administrateur, puis lance le serveur :
+Crée un compte administrateur avec une vraie adresse e-mail, puis lance le serveur :
 
 ```bash
 python manage.py createsuperuser
 python manage.py runserver 0.0.0.0:8000
 ```
 
-**Deux types d'accès à l'API :**
+L'adresse e-mail du compte administrateur sert d'identifiant et reçoit le code de vérification. Elle doit être différente de celle de tout contribuable : si les deux coïncident, le contribuable est prioritaire et l'administrateur ne peut pas se connecter.
 
-- **contribuables :** en-tête `Authorization: Bearer <token>`, obtenu après la connexion en deux étapes ;
-- **administrateurs :** en-tête `Authorization: Token <token>`, pour un compte Django `is_staff`, obtenu par la route `admin-login/`.
+**Authentification et accès à l'API :**
+
+- **un seul écran de connexion :** `frontend/app/(tabs)/log_in.jsx`, utilisé par les contribuables et les administrateurs ;
+- **même en-tête pour tous :** `Authorization: Bearer <token>` ;
+- **détection du rôle côté serveur :** après vérification du code e-mail, le serveur renvoie le rôle `contribuable` ou `admin` ;
+- **redirection côté application :** un contribuable est dirigé vers `/drawer`, tandis qu'un administrateur est dirigé vers `/AdminBarreView` ;
+- **administrateur :** le compte est créé avec `python manage.py createsuperuser` et utilise une adresse e-mail réelle pour recevoir les codes. Cette adresse doit être différente de celle d'un contribuable.
+
+L'ancienne route `admin-login/` et l'ancien schéma `Token` ne sont plus utilisés.
 
 Les routes disponibles sont définies dans `backend/users/api/urls.py`.
 
@@ -293,7 +313,7 @@ npm install
 Crée le fichier `frontend/.env` avec l'adresse de l'API (remplace par l'IP locale de ton PC, visible avec `ipconfig` sous Windows) :
 
 ```text
-EXPO_PUBLIC_API_URL=http://192.168.1.10:8000/api
+EXPO_PUBLIC_API_URL=http://192.168.1.10:8000
 ```
 
 Ajoute cette même IP dans `DJANGO_ALLOWED_HOSTS` du fichier `backend/.env`, puis lance :
@@ -302,9 +322,25 @@ Ajoute cette même IP dans `DJANGO_ALLOWED_HOSTS` du fichier `backend/.env`, pui
 npx expo start --clear
 ```
 
-Scanne le code QR avec Expo Go. Le téléphone et l'ordinateur doivent être sur le même réseau Wi-Fi, et le pare-feu doit autoriser Python sur les réseaux privés. Avec un émulateur Android, l'adresse de l'API est `http://10.0.2.2:8000/api`.
+Scanne le code QR avec Expo Go. Le téléphone et l'ordinateur doivent être sur le même réseau Wi-Fi, et le pare-feu doit autoriser Python sur les réseaux privés. Avec un émulateur Android, l'adresse de l'API est `http://10.0.2.2:8000`.
 
 ---
+
+## 👤 Espace administrateur
+
+L'administrateur utilise désormais le **même écran de connexion** que le contribuable. Il saisit son e-mail et son mot de passe, puis le code de vérification reçu par e-mail.
+
+Après authentification, le serveur renvoie le rôle de l'utilisateur :
+
+- `contribuable` → ouverture de `/drawer` ;
+- `admin` → ouverture de `/AdminBarreView`.
+
+L'espace administrateur permet notamment :
+
+- de rechercher un contribuable par PRENIF ;
+- de consulter et gérer les messages ;
+- d'utiliser le chat administrateur ;
+- d'appliquer les permissions correspondant au rôle administrateur.
 
 ## ⚠️ Limites du projet
 
@@ -312,7 +348,7 @@ Scanne le code QR avec Expo Go. Le téléphone et l'ordinateur doivent être sur
 - aucun test automatisé n'est fourni dans le dépôt ;
 - les vues SQL sont une reconstruction : leur logique (année de paiement, une ligne par paiement) doit être validée avant tout usage réel ;
 - l'application stocke des données personnelles sensibles (CIN, photo, contacts, transactions) : leur protection doit être vérifiée et documentée avant tout usage réel ;
-- les tokens des administrateurs (DRF standard) n'expirent pas : un token volé reste valide tant qu'il n'est pas supprimé ;
+- l'authentification administrateur utilise désormais un token limité à 12 heures ; un seul token administrateur est actif à la fois ;
 - le PRENIF est calculé à partir du CIN : il est prévisible et ne doit jamais servir de secret ;
 - la photo de profil est stockée en base64 dans la base de données ;
 - le changement d'adresse e-mail depuis le profil ne demande pas de nouvelle vérification par code ;
