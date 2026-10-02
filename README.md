@@ -178,11 +178,11 @@ Règles de gestion :
 - **RG11 :** un code de vérification est temporaire, utilisable une seule fois et limité en nombre de tentatives;
 - **RG12 :** une transaction est associée à un contribuable et possède les informations nécessaires à son suivi, notamment le montant, le mode de paiement et le numéro de quittance;
 
-**Données conservées pour un contribuable :** identité (nom, prénom, sexe, date et lieu de naissance, situation familiale), CIN (numéro, date et lieu de délivrance), contact(s), adresse e-mail, lieu de résidence, numéro PRENIF et photo.
+Données conservées pour un contribuable : identité (nom, prénom, sexe, date et lieu de naissance, situation familiale), CIN (numéro, date et lieu de délivrance), contact(s), adresse e-mail, lieu de résidence, numéro PRENIF et photo.
 
-**Données d'authentification :** mot de passe stocké sous forme hachée, codes de vérification temporaires et tokens d'authentification avec durée de validité limitée.
+Données d'authentification : mot de passe stocké sous forme hachée, codes de vérification temporaires et tokens d'authentification avec durée de validité limitée.
 
-**Données conservées pour une transaction :** identifiant, mode de paiement, montant à payer, numéro de quittance.
+Données conservées pour une transaction : identifiant, mode de paiement, montant à payer, numéro de quittance.
 
 Tables principales de la base :
 
