@@ -165,14 +165,24 @@ Les principales données gérées sont le **contribuable**, ses **transactions**
 
 Règles de gestion :
 
-- **RG1 :** un contribuable a un et un seul numéro PRENIF ;
-- **RG2 :** un contribuable peut avoir un ou plusieurs contacts ;
-- **RG3 :** un contribuable peut faire une ou plusieurs transactions ;
-- **RG4 :** un contribuable peut envoyer un ou plusieurs messages.
+- **RG1 :** un contribuable possède un et un seul numéro PRENIF;
+- **RG2 :** un contribuable peut avoir un ou plusieurs contacts;
+- **RG3 :** un contribuable peut effectuer une ou plusieurs transactions;
+- **RG4 :** un contribuable peut envoyer un ou plusieurs messages au service d'aide;
+- **RG5 :** une adresse e-mail est associée à un seul compte utilisateur;
+- **RG6 :** l'authentification nécessite un e-mail, un mot de passe et un code de vérification à 6 chiffres envoyé par e-mail;
+- **RG7 :** un utilisateur possède un rôle qui détermine son espace d'accès : contribuable ou admin;
+- **RG8 :** un contribuable ne peut accéder qu'à ses propres informations, transactions et messages;
+- **RG9 :** un administrateur peut rechercher et consulter les informations des contribuables selon les permissions qui lui sont accordées;
+- **RG10 :** un contribuable doit être identifié à partir des informations fournies lors de l'inscription avant l'attribution de son PRENIF;
+- **RG11 :** un code de vérification est temporaire, utilisable une seule fois et limité en nombre de tentatives;
+- **RG12 :** une transaction est associée à un contribuable et possède les informations nécessaires à son suivi, notamment le montant, le mode de paiement et le numéro de quittance;
 
-Données conservées pour un contribuable : identité (nom, prénom, sexe, date et lieu de naissance, situation familiale), CIN (numéro, date et lieu de délivrance), contact, adresse e-mail, lieu de résidence, numéro PRENIF, mot de passe (haché) et photo.
+**Données conservées pour un contribuable :** identité (nom, prénom, sexe, date et lieu de naissance, situation familiale), CIN (numéro, date et lieu de délivrance), contact(s), adresse e-mail, lieu de résidence, numéro PRENIF et photo.
 
-Données conservées pour une transaction : identifiant, mode de paiement, montant à payer, numéro de quittance.
+**Données d'authentification :** mot de passe stocké sous forme hachée, codes de vérification temporaires et tokens d'authentification avec durée de validité limitée.
+
+**Données conservées pour une transaction :** identifiant, mode de paiement, montant à payer, numéro de quittance.
 
 Tables principales de la base :
 
