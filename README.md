@@ -133,7 +133,7 @@ Immatriculation_fiscale_en_ligne/
 │   ├── hooks/
 │   ├── app.json
 │   ├── package.json
-│   └── .env                      # adresse de l'API (EXPO_PUBLIC_API_URL), non versionné
+│   └── .env.example              # adresse de l'API (EXPO_PUBLIC_API_URL), non versionné
 ├── docs/                         # captures d'écran affichées dans ce README
 │   ├── connexion.png
 │   ├── inscription.png
