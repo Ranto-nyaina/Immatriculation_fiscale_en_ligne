@@ -86,16 +86,20 @@ L'application suit une **architecture 3-tiers** et communique par une **API REST
 
 | Domaine | Choix | Alternative comparée dans le mémoire |
 |---|---|---|
-| Application mobile | React Native (testée avec Expo Go) | Flutter |
-| Backend | Python + Django + Django REST Framework | Flask, FastAPI |
-| Base de données | PostgreSQL (administrée avec pgAdmin 4) | MySQL |
-| Authentification | Authentification commune par `Bearer <token>`, avec code e-mail et permissions par rôle | — |
-| E-mail | SMTP Gmail, pour le code de vérification | — |
+| Application mobile | React Native (JavaScript/JSX, `_layout.tsx` en TypeScript), testée avec Expo Go | Flutter |
+| Navigation mobile | Expo Router (écrans dans `app/(tabs)/`, menu latéral `/drawer`) | React Navigation seul |
+| Backend | Python 3.12+, Django, Django REST Framework | Flask, FastAPI |
+| Échanges client-serveur | API REST, format JSON | GraphQL |
+| Base de données | PostgreSQL, administrée avec pgAdmin 4, accès via l'ORM Django, trois vues SQL | MySQL |
+| Authentification | Token `Bearer` géré par le projet (table `auth_token_contribuable`), code à 6 chiffres hashé, permissions par rôle, mots de passe PBKDF2 (Django) | JWT, DRF TokenAuthentication |
+| E-mail | SMTP Gmail avec mot de passe d'application, pour le code de vérification | SendGrid, Mailgun |
+| Limitation de débit | 10 requêtes/minute sur les routes publiques, cache local Django | Cache partagé (Redis) |
 | Méthode de conception | UP (Processus Unifié) | Merise |
-| Modélisation | UML, avec Visual Paradigm | — |
-| Éditeur | Visual Studio Code | — |
+| Modélisation | UML, avec Visual Paradigm | StarUML, draw.io |
+| Éditeur | Visual Studio Code | PyCharm, Android Studio |
+| Outils de développement | Node.js, npm, pip, venv, Git/GitHub | Yarn, Poetry, GitLab |
 
-Les versions exactes des dépendances Python sont figées dans `backend/requirements.txt`.
+Les versions exactes des dépendances Python sont figées dans `backend/requirements.txt`, celles des dépendances mobiles dans `frontend/package.json`.
 
 ---
 
@@ -104,7 +108,7 @@ Les versions exactes des dépendances Python sont figées dans `backend/requirem
 Principaux éléments :
 
 ```text
-apk-prenif/
+Immatriculation_fiscale_en_ligne/
 ├── backend/
 │   ├── myApp/                    # configuration Django (settings, urls)
 │   ├── users/
@@ -113,12 +117,12 @@ apk-prenif/
 │   │   ├── migrations/
 │   │   └── models.py             # contribuable, transactions, messages, tokens...
 │   ├── sql/
-│   │   ├── nif.sql               # le base de donnée 
-│   │   ├── test_data.sql         # données pour faire le teste
+│   │   ├── nif.sql               # la base de données
+│   │   ├── test_data.sql         # données pour faire les tests
 │   │   └── vues.sql              # vues SQL à créer après les migrations
 │   ├── manage.py
 │   ├── requirements.txt
-│   └── .env                      # modèle de configuration (à copier en .env)
+│   └── .env.example              # modèle de configuration (à copier en .env)
 ├── frontend/                     # application mobile (React Native + Expo Router)
 │   ├── app/
 │   │   ├── (tabs)/               # écrans de l'application (voir le tableau ci-dessous)
@@ -165,18 +169,18 @@ Les principales données gérées sont le **contribuable**, ses **transactions**
 
 Règles de gestion :
 
-- **RG1 :** un contribuable possède un et un seul numéro PRENIF;
-- **RG2 :** un contribuable peut avoir un ou plusieurs contacts;
-- **RG3 :** un contribuable peut effectuer une ou plusieurs transactions;
-- **RG4 :** un contribuable peut envoyer un ou plusieurs messages au service d'aide;
-- **RG5 :** une adresse e-mail est associée à un seul compte utilisateur;
-- **RG6 :** l'authentification nécessite un e-mail, un mot de passe et un code de vérification à 6 chiffres envoyé par e-mail;
-- **RG7 :** un utilisateur possède un rôle qui détermine son espace d'accès : contribuable ou admin;
-- **RG8 :** un contribuable ne peut accéder qu'à ses propres informations, transactions et messages;
-- **RG9 :** un administrateur peut rechercher et consulter les informations des contribuables selon les permissions qui lui sont accordées;
-- **RG10 :** un contribuable doit être identifié à partir des informations fournies lors de l'inscription avant l'attribution de son PRENIF;
-- **RG11 :** un code de vérification est temporaire, utilisable une seule fois et limité en nombre de tentatives;
-- **RG12 :** une transaction est associée à un contribuable et possède les informations nécessaires à son suivi, notamment le montant, le mode de paiement et le numéro de quittance;
+- **RG1 :** un contribuable possède un et un seul numéro PRENIF ;
+- **RG2 :** un contribuable peut avoir un ou plusieurs contacts ;
+- **RG3 :** un contribuable peut effectuer une ou plusieurs transactions ;
+- **RG4 :** un contribuable peut envoyer un ou plusieurs messages au service d'aide ;
+- **RG5 :** une adresse e-mail est associée à un seul compte utilisateur ;
+- **RG6 :** l'authentification nécessite un e-mail, un mot de passe et un code de vérification à 6 chiffres envoyé par e-mail ;
+- **RG7 :** un utilisateur possède un rôle qui détermine son espace d'accès : contribuable ou admin ;
+- **RG8 :** un contribuable ne peut accéder qu'à ses propres informations, transactions et messages ;
+- **RG9 :** un administrateur peut rechercher et consulter les informations des contribuables selon les permissions qui lui sont accordées ;
+- **RG10 :** un contribuable doit être identifié à partir des informations fournies lors de l'inscription avant l'attribution de son PRENIF ;
+- **RG11 :** un code de vérification est temporaire, utilisable une seule fois et limité en nombre de tentatives ;
+- **RG12 :** une transaction est associée à un contribuable et possède les informations nécessaires à son suivi, notamment le montant, le mode de paiement et le numéro de quittance.
 
 Données conservées pour un contribuable : identité (nom, prénom, sexe, date et lieu de naissance, situation familiale), CIN (numéro, date et lieu de délivrance), contact(s), adresse e-mail, lieu de résidence, numéro PRENIF et photo.
 
@@ -189,7 +193,7 @@ Tables principales de la base :
 - `contribuable`, `operateur`, `messages` ;
 - `central_recette` (transactions issues des logiciels de la DGI), `paiement`, `mode_paiement`, `num_impot`, `logiciel` ;
 - `auth_token_contribuable` et `verification_code` (authentification) ;
-- la relation `VerificationCode.user` permet d'associer le code à l'utilisateur Django concerné ; le champ `contribuable` est nullable pour prendre en charge les comptes administrateurs.
+- la relation `VerificationCode.user` permet d'associer le code à l'utilisateur Django concerné ; le champ `contribuable` est nullable pour prendre en charge les comptes administrateurs ;
 - un découpage territorial (pays, région, ville, localité, wereda, fokontany).
 
 Trois **vues SQL** alimentent l'historique des transactions, le tableau de bord et les messages : `vue_somme_par_contribuable_par_annee`, `vue_detail_transactions_par_quit_et_contribuable` et `vue_messages`. Les modèles Django correspondants sont en `managed = False` : **les migrations ne créent pas ces vues**, elles doivent être créées avec `backend/sql/vues.sql` (voir Installation).
@@ -352,13 +356,15 @@ L'espace administrateur permet notamment :
 - d'utiliser le chat administrateur ;
 - d'appliquer les permissions correspondant au rôle administrateur.
 
+---
+
 ## ⚠️ Limites du projet
 
 - L'application n'est décrite que dans un environnement de développement (Expo Go) : aucun déploiement en production n'est documenté ;
 - aucun test automatisé n'est fourni dans le dépôt ;
 - les vues SQL sont une reconstruction : leur logique (année de paiement, une ligne par paiement) doit être validée avant tout usage réel ;
 - l'application stocke des données personnelles sensibles (CIN, photo, contacts, transactions) : leur protection doit être vérifiée et documentée avant tout usage réel ;
-- l'authentification administrateur utilise désormais un token limité à 12 heures ; un seul token administrateur est actif à la fois ;
+- l'authentification administrateur utilise un token limité à 12 heures ; un seul token administrateur est actif à la fois ;
 - le PRENIF est calculé à partir du CIN : il est prévisible et ne doit jamais servir de secret ;
 - la photo de profil est stockée en base64 dans la base de données ;
 - le changement d'adresse e-mail depuis le profil ne demande pas de nouvelle vérification par code ;
@@ -376,7 +382,6 @@ L'espace administrateur permet notamment :
 - séparer la configuration développement / production et activer HTTPS ;
 - exiger un nouveau code lors du changement d'adresse e-mail ;
 - stocker les photos comme fichiers plutôt qu'en base64 ;
-- utiliser des tokens à durée limitée pour les administrateurs ;
 - étendre l'application aux personnes morales.
 
 ---
